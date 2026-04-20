@@ -1,9 +1,11 @@
 const mongoose = require("mongoose");
 
-module.exports = mongoose.model("Alert", {
+const AlertSchema = new mongoose.Schema({
   userId: String,
-  service: String,
-  amount: Number,
-  expiry: Date,
-  frequency: String
+  email: String,
+  message: String,
+  interval: Number,
+  nextRun: Date
 });
+
+module.exports = mongoose.model("Alert", AlertSchema);
