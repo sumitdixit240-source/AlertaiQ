@@ -1,44 +1,17 @@
-const API = "http://localhost:5000/api";
+const express = require("express");
+const cors = require("cors");
 
-// LOGIN
-async function login(){
-  const res = await fetch(API+"/auth/login",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      email:email.value,
-      password:password.value
-    })
-  });
+const auth = require("./routes/auth");
+const alerts = require("./routes/alerts");
+const payments = require("./routes/payments");
 
-  const data = await res.json();
+const app = express();
 
-  localStorage.setItem("token",data.token);
+app.use(cors());
+app.use(express.json());
 
-  alert("Login Success");
-  location.href="dashboard.html";
-}
+app.use("/api/auth", auth);
+app.use("/api/alerts", alerts);
+app.use("/api/payments", payments);
 
-// CREATE ALERT
-async function createAlert(){
-  const res = await fetch(API+"/alerts",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "Authorization":localStorage.getItem("token")
-    },
-    body:JSON.stringify({
-      title:title.value,
-      amount:amount.value,
-      expiry:expiry.value
-    })
-  });
-
-  const data = await res.json();
-
-  if(data.upgrade){
-    alert("Upgrade required!");
-  } else {
-    alert("Alert created");
-  }
-}
+module.exports = app;
