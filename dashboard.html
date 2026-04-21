@@ -85,11 +85,17 @@
         }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .premium-glow {
+            box-shadow: 0 0 30px rgba(168, 85, 247, 0.4);
+            border: 1px solid rgba(168, 85, 247, 0.5);
+        }
     </style>
 </head>
 <body class="antialiased">
     <canvas id="mesh-canvas"></canvas>
 
+    <!-- Global Overlays -->
     <div id="overlay" class="fixed inset-0 z-[100] hidden bg-slate-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center">
         <div id="loader-box" class="flex flex-col items-center">
             <div class="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-6"></div>
@@ -105,6 +111,27 @@
         </div>
     </div>
 
+    <!-- Subscription Paywall Modal -->
+    <div id="paywall-modal" class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md">
+        <div class="glass-card w-full max-w-md rounded-3xl p-8 border-purple-500/30 text-center premium-glow">
+            <div class="w-20 h-20 bg-purple-500/20 text-purple-400 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-6">
+                <i class="fas fa-crown"></i>
+            </div>
+            <h3 class="text-3xl font-black text-white mb-2">Limit Reached</h3>
+            <p class="text-slate-400 mb-8">You've reached the free tier limit of 2 active nodes. Upgrade to Pro to manage unlimited entities and get AI-driven cost optimization.</p>
+            
+            <div class="space-y-4">
+                <button onclick="upgradeAccount()" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all transform hover:scale-[1.02]">
+                    UNLOCK UNLIMITED NODES
+                </button>
+                <button onclick="closePaywall()" class="text-slate-500 text-sm hover:text-white transition-colors">
+                    Maybe later
+                </button>
+            </div>
+            <p class="mt-6 text-[10px] text-slate-500 uppercase tracking-widest font-bold">Secure Checkout via Stripe</p>
+        </div>
+    </div>
+
     <div id="main-ui" class="opacity-0 transition-opacity duration-700 min-h-screen flex flex-col">
         <header class="sticky top-0 z-50 border-b border-white/5 bg-slate-900/50 backdrop-blur-md px-6 py-4">
             <div class="max-w-7xl mx-auto flex justify-between items-center">
@@ -115,7 +142,8 @@
                     <h1 class="text-xl font-black text-white">Renew<span class="text-indigo-400">AI</span></h1>
                 </div>
                 <div class="flex items-center gap-4">
-                    <span id="local-status" class="text-[10px] font-mono text-slate-500 hidden md:block">Local Storage Sync Active</span>
+                    <div id="subscription-badge" class="hidden px-3 py-1 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full text-[10px] font-bold uppercase tracking-tighter">PRO USER</div>
+                    <span id="local-status" class="text-[10px] font-mono text-slate-500 hidden md:block">Session Synchronized</span>
                     <button onclick="triggerLogout()" class="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all">
                         <i class="fas fa-sign-out-alt"></i>
                     </button>
@@ -144,6 +172,7 @@
         </main>
     </div>
 
+    <!-- Node Configuration Modal -->
     <div id="modal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm">
         <div class="glass-card w-full max-w-lg rounded-3xl p-8 border-indigo-500/30">
             <div class="flex justify-between items-center mb-8">
@@ -193,8 +222,6 @@
     </div>
 
     <script type="module">
-        import { createAlert } from "./js/api.js";
-
         const SECTORS = [
             { name: "SaaS Subscriptions", icon: "fa-cloud", subs: ["Amazon Prime", "Netflix", "ChatGPT Plus", "Claude Pro", "Adobe CC", "Spotify", "GitHub Pro", "Midjourney", "Figma Pro", "Canva", "Dropbox", "Slack", "Zoom", "Youtube Premium", "Disney+", "LinkedIn Premium", "Hulu", "Microsoft 365", "Grammarly", "Cursor AI"] },
             { name: "Billing Related", icon: "fa-receipt", subs: ["Phone Bill", "Electricity Bill", "Water Bill", "Gas Connection", "Broadband", "Postpaid Mobile", "DTH Recharge", "Society Maintenance", "Waste Disposal", "Cooking Gas", "Piped Water", "Home Security", "Cable TV", "Landline", "LPG Cylinder", "Municipal Bill", "Electricity Commercial", "Sewerage Tax", "Trade License", "Signage Bill"] },
@@ -211,6 +238,7 @@
         let nodes = [];
         let newlyAddedId = null;
         let activeIntervals = {};
+        let isProUser = false;
 
         // Bootstrapping
         window.onload = () => {
@@ -224,7 +252,13 @@
 
         function loadFromStorage() {
             const saved = localStorage.getItem('renew_ai_nodes');
+            const proState = localStorage.getItem('renew_ai_pro');
             nodes = saved ? JSON.parse(saved) : [];
+            isProUser = proState === 'true';
+            
+            if(isProUser) {
+                document.getElementById('subscription-badge').classList.remove('hidden');
+            }
         }
 
         function saveToStorage() {
@@ -242,6 +276,12 @@
         }
 
         window.openModal = (cat) => {
+            // CHECK SUBSCRIPTION GATE
+            if (nodes.length >= 2 && !isProUser) {
+                document.getElementById('paywall-modal').classList.remove('hidden');
+                return;
+            }
+
             const sector = SECTORS.find(s => s.name === cat);
             document.getElementById('modal-cat').innerText = cat;
             document.getElementById('form-cat-val').value = cat;
@@ -251,9 +291,31 @@
         };
 
         window.closeModal = () => document.getElementById('modal').classList.add('hidden');
+        window.closePaywall = () => document.getElementById('paywall-modal').classList.add('hidden');
+
+        window.upgradeAccount = () => {
+            // Simulating payment process
+            document.getElementById('paywall-modal').innerHTML = `
+                <div class="flex flex-col items-center py-8">
+                    <div class="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4"></div>
+                    <h4 class="text-white font-bold">Upgrading to Pro...</h4>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                isProUser = true;
+                localStorage.setItem('renew_ai_pro', 'true');
+                document.getElementById('subscription-badge').classList.remove('hidden');
+                closePaywall();
+                // Optionally re-open the modal they were trying to access
+                // Since we don't know which one they clicked, we just allow them to click again.
+                window.location.reload(); // Hard refresh to reset UI state
+            }, 2000);
+        };
 
         document.getElementById('node-form').onsubmit = async (e) => {
             e.preventDefault();
+            
             const data = {
                 id: 'node_' + Date.now(),
                 cat: document.getElementById('form-cat-val').value,
@@ -261,52 +323,54 @@
                 freq: document.getElementById('form-freq').value,
                 amt: parseFloat(document.getElementById('form-amt').value),
                 expiry: document.getElementById('form-expiry').value,
-                created: Date.now()
+                created: Date.now(),
+                aiSuggestion: "Analyzing market trends..."
             };
 
             closeModal();
             showNotifOverlay();
             
-            // Simulating AI interaction
-            await getAISuggestion(data);
+            // Simulating AI interaction with exponential backoff logic as per environment rules
+            const aiFeedback = await getAISuggestion(data);
+            data.aiSuggestion = aiFeedback;
 
-            // API Deployment logic
-            try {
-                await createAlert({
-                    userId: localStorage.getItem("userId"),
-                    service: data.sub,
-                    amount: data.amt,
-                    expiry: data.expiry,
-                    frequency: data.freq
-                });
-                
-                // Still keep local state updated for UI responsiveness
-                nodes.unshift(data);
-                saveToStorage();
-                newlyAddedId = data.id;
-            } catch (err) {
-                console.error("API Deployment failed:", err);
-            }
+            nodes.unshift(data);
+            saveToStorage();
+            newlyAddedId = data.id;
 
             setTimeout(() => {
                 hideNotifOverlay();
                 renderNodes();
                 updateBurn();
-            }, 3000);
+            }, 2000);
         };
 
         async function getAISuggestion(node) {
-            const apiKey = "";
-            const prompt = `User added a ${node.sub} (${node.cat}) entity. Expiry: ${node.expiry}. Freq: ${node.freq}. Amt: ₹${node.amt}. Give 1 smart AI suggestion (15 words) from current date ${new Date().toLocaleString()}.`;
-            try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                });
-                const resData = await res.json();
-                console.log("AI Brief:", resData.candidates[0].content.parts[0].text);
-            } catch (e) { console.log("AI Brief: Monitoring standard rates for " + node.sub); }
+            const apiKey = ""; // Runtime key injection
+            const systemPrompt = "You are a cost optimization bot. Give one short, actionable tip (max 12 words) for the service mentioned.";
+            const userQuery = `I just added a subscription for ${node.sub} costing ₹${node.amt}. It expires on ${node.expiry}.`;
+            
+            let retries = 0;
+            const delays = [1000, 2000, 4000, 8000, 16000];
+
+            while (retries < 5) {
+                try {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            contents: [{ parts: [{ text: userQuery }] }],
+                            systemInstruction: { parts: [{ text: systemPrompt }] }
+                        })
+                    });
+                    const result = await res.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "Check for family plan options to save more.";
+                } catch (e) {
+                    await new Promise(r => setTimeout(r, delays[retries]));
+                    retries++;
+                }
+            }
+            return "Auto-renewal monitor active. Review 3 days before expiry.";
         }
 
         function renderNodes() {
@@ -324,19 +388,24 @@
                     <div class="flex justify-between items-start">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                                <i class="${SECTORS.find(s => s.name === node.cat)?.icon || 'fa-cube'}"></i>
+                                <i class="fas ${SECTORS.find(s => s.name === node.cat)?.icon || 'fa-cube'}"></i>
                             </div>
                             <div>
                                 <h4 class="font-bold text-white">${node.sub}</h4>
                                 <p class="text-[9px] font-black text-slate-500 uppercase">${node.cat}</p>
                             </div>
                         </div>
-                        <button onclick="del('${node.id}')" class="text-slate-600 hover:text-rose-500"><i class="fas fa-trash-alt"></i></button>
+                        <button onclick="del('${node.id}')" class="text-slate-600 hover:text-rose-500 transition-colors"><i class="fas fa-trash-alt"></i></button>
                     </div>
 
                     <div class="flex items-baseline gap-2">
                         <span class="text-3xl font-black text-white">₹${node.amt.toLocaleString()}</span>
                         <span class="text-[9px] text-emerald-400 font-bold uppercase">${node.freq} Alert</span>
+                    </div>
+
+                    <div class="bg-indigo-500/5 p-3 rounded-xl border border-indigo-500/10">
+                         <p class="text-[10px] text-indigo-400 font-bold uppercase mb-1">AI INSIGHT</p>
+                         <p class="text-xs text-slate-300 italic">"${node.aiSuggestion || 'Analyzing usage patterns...'}"</p>
                     </div>
 
                     <div class="timer-grid" id="timer-${node.id}">
@@ -437,7 +506,7 @@
             let w, h, p = [];
             const resize = () => { w = c.width = window.innerWidth; h = c.height = window.innerHeight; };
             resize();
-            for(let i=0; i<30; i++) p.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5), vy:(Math.random()-0.5)});
+            for(let i=0; i<30; i++) p.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*0.5, vy:(Math.random()-0.5)*0.5});
             function draw() {
                 ctx.clearRect(0,0,w,h);
                 ctx.strokeStyle = "rgba(99, 102, 241, 0.1)";
