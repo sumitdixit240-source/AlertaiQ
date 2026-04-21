@@ -1,101 +1,69 @@
 const express = require("express");
-const router = express.Router();
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const User = require("../models/User");
 const OTP = require("../models/OTP");
-
-const bcrypt = require("bcryptjs");
+const sendMail = require("../services/mailer");
 const generateOTP = require("../utils/generateOTP");
-const generateToken = require("../utils/jwt");
 
-let sendEmailOTP;
-try {
-  ({ sendEmailOTP } = require("../services/mailer"));
-} catch (e) {
-  console.log("Mailer not loaded");
-}
+const router = express.Router();
 
-/* =========================
-   REGISTER USER
-========================= */
+
+// REGISTER
 router.post("/register", async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
+  const { name, email, password } = req.body;
 
-    const exists = await User.findOne({ email });
-    if (exists) return res.status(400).json({ msg: "User exists" });
+  const hash = await bcrypt.hash(password, 10);
 
-    const hashed = await bcrypt.hash(password, 10);
+  await User.create({ name, email, password: hash });
 
-    const user = await User.create({
-      name,
-      email,
-      password: hashed,
-    });
-
-    // OTP generate
-    const otp = generateOTP();
-
-    await OTP.create({
-      email,
-      otp,
-      expiresAt: Date.now() + 10 * 60 * 1000,
-    });
-
-    if (sendEmailOTP) await sendEmailOTP(email, otp);
-
-    res.json({
-      msg: "User registered. OTP sent.",
-      userId: user._id,
-    });
-  } catch (err) {
-    res.status(500).json({ msg: err.message });
-  }
+  res.json({ msg: "Account created successfully" });
 });
 
-/* =========================
-   VERIFY OTP
-========================= */
-router.post("/verify-otp", async (req, res) => {
-  try {
-    const { email, otp } = req.body;
 
-    const record = await OTP.findOne({ email, otp });
-    if (!record) return res.status(400).json({ msg: "Invalid OTP" });
+// SEND OTP
+router.post("/send-otp", async (req, res) => {
+  const { email } = req.body;
 
-    if (record.expiresAt < Date.now())
-      return res.status(400).json({ msg: "OTP expired" });
+  const otp = generateOTP();
 
-    await User.updateOne({ email }, { isVerified: true });
-    await OTP.deleteMany({ email });
+  await OTP.create({ email, otp });
 
-    const token = generateToken(record._id);
+  await sendMail(email, "AlertAIQ OTP", `Your OTP is ${otp}`);
 
-    res.json({ msg: "Verified", token });
-  } catch (err) {
-    res.status(500).json({ msg: err.message });
-  }
+  res.json({ msg: "OTP sent" });
 });
 
-/* =========================
-   LOGIN
-========================= */
+
+// LOGIN PASSWORD
 router.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ msg: "No user" });
+  const user = await User.findOne({ email });
+  if (!user) return res.status(400).json({ msg: "User not found" });
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ msg: "Wrong password" });
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.status(400).json({ msg: "Wrong password" });
 
-    const token = generateToken(user._id);
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
 
-    res.json({ msg: "Login success", token });
-  } catch (err) {
-    res.status(500).json({ msg: err.message });
-  }
+  res.json({ token, user });
+});
+
+
+// LOGIN OTP VERIFY
+router.post("/verify-otp", async (req, res) => {
+  const { email, otp } = req.body;
+
+  const record = await OTP.findOne({ email, otp });
+  if (!record) return res.status(400).json({ msg: "Invalid OTP" });
+
+  const user = await User.findOne({ email });
+
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+
+  res.json({ token, user });
 });
 
 module.exports = router;
