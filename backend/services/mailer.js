@@ -25,7 +25,7 @@ const sendEmailOTP = async (email, otp) => {
   await transporter.sendMail({
     from: `"AlertAIQ" <${process.env.EMAIL_USER}>`,
     to: email,
-    subject: "Your OTP Code",
+    subject: "Your OTP Code of Login to AlertaiQ is :  ",
     html: `
       <div style="font-family:Arial;padding:10px">
         <h2>AlertAIQ Verification OTP</h2>
