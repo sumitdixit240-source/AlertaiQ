@@ -1,8 +1,9 @@
 import express from "express";
-import OTP from "../models/otp.js";
+import OTP from "../models/OTP.js";
 import { sendEmailOTP } from "../services/mailer.js";
 
 const router = express.Router();
+
 
 // ================= TEST ROUTE =================
 router.get("/", (req, res) => {
@@ -25,7 +26,6 @@ router.post("/create", async (req, res) => {
             });
         }
 
-        // TODO: Save to MongoDB (next step)
         res.json({
             success: true,
             message: "Alert created successfully",
@@ -56,10 +56,10 @@ router.post("/send-otp", async (req, res) => {
 
         const otp = Math.floor(100000 + Math.random() * 900000);
 
-        // save OTP in DB (auto expires if schema has expires)
+        // ✅ FIXED: OTP model usage (uppercase)
         await OTP.create({ email, otp });
 
-        // send OTP email
+        // send email
         await sendEmailOTP(email, otp);
 
         res.json({
@@ -91,7 +91,7 @@ router.post("/verify-otp", async (req, res) => {
             });
         }
 
-        // remove OTP after success
+        // delete OTP after success
         await OTP.deleteMany({ email });
 
         res.json({
