@@ -1,6 +1,6 @@
 import express from "express";
 import OTP from "../models/otp.js";
-import { sendEmailOTP } from "../utils/mailer.js";
+import { sendEmailOTP } from "../utils/nodemailer.js";
 
 const router = express.Router();
 
