@@ -1,69 +1,69 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-require("dotenv").config();
+const dotenv = require("dotenv");
 
-// Cron job (optional safe load)
-try {
-  require("./jobs/cron");
-} catch (err) {
-  console.log("Cron not loaded");
-}
+dotenv.config();
+
+const connectDB = require("./config/db");
 
 const app = express();
 
-// ---------------- MIDDLEWARE ----------------
+/* =========================
+   MIDDLEWARE
+========================= */
 app.use(cors());
 app.use(express.json());
 
-// ---------------- DATABASE ----------------
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("DB Connected"))
-  .catch(err => console.log("DB Error:", err));
-
-// ---------------- ROUTES ----------------
-
-// ALL routes MUST export express.Router()
-
-const authRoute = require("./routes/auth");
-const paymentRoute = require("./routes/payment");
-const alertRoute = require("./routes/alert");
-const aiRoute = require("./routes/ai");
-const userRoute = require("./routes/User");
-
-// ⚠️ FIX: DO NOT use services or models in app.use
-// REMOVE these:
-// const mailerRoute = require("./services/mailer"); ❌
-// const otpRoute = require("./models/OTP"); ❌
-
-// OPTIONAL route (safe load)
-let razorpayRoute;
-try {
-  razorpayRoute = require("./routes/razorpay");
-} catch (e) {
-  console.log("Razorpay route missing - skipping");
-}
-
-// ---------------- USE ROUTES ----------------
-app.use("/api/auth", authRoute);
-app.use("/api/payment", paymentRoute);
-app.use("/api/alerts", alertRoute);
-app.use("/api/ai", aiRoute);
-app.use("/api/user", userRoute);
-
-// Optional route
-if (razorpayRoute) {
-  app.use("/api/razorpay", razorpayRoute);
-}
-
-// ---------------- TEST ROUTE ----------------
-app.get("/", (req, res) => {
-  res.send("AlertAIQ Backend Running 🚀");
+/* =========================
+   DATABASE CONNECTION
+========================= */
+connectDB(); 
+// fallback safety (optional if connectDB already handles logs)
+mongoose.connection.on("connected", () => {
+  console.log("DB Connected (mongoose event)");
 });
 
-// ---------------- START SERVER ----------------
+mongoose.connection.on("error", (err) => {
+  console.log("DB Connection Error:", err);
+});
+
+/* =========================
+   ROUTES
+========================= */
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/payment", require("./routes/payment"));
+app.use("/api/alerts", require("./routes/alert"));
+app.use("/api/ai", require("./routes/ai"));
+app.use("/api/user", require("./routes/User"));
+
+/* =========================
+   HEALTH CHECK ROUTE
+========================= */
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "AlertAIQ Backend Running 🚀",
+    timestamp: new Date()
+  });
+});
+
+/* =========================
+   GLOBAL ERROR HANDLER (SAFE)
+========================= */
+app.use((err, req, res, next) => {
+  console.error("GLOBAL ERROR:", err);
+  res.status(500).json({
+    success: false,
+    message: "Internal Server Error"
+  });
+});
+
+/* =========================
+   START SERVER
+========================= */
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
