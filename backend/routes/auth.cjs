@@ -3,9 +3,9 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 import User from "../models/User.js";
-import OTP from "../models/OTP.js";
-import sendMail from "../services/mailer.js";
-import generateOTP from "../utils/generateOTP.js";
+import OTP from "../models/OTP.cjs";
+import sendMail from "../services/mailer.cjs";
+import generateOTP from "../utils/generateOTP.cjs";
 
 const router = express.Router();
 
