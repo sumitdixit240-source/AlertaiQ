@@ -15,11 +15,6 @@ import errorHandler from "./middleware/errorMiddleware.js";
 
 dotenv.config();
 
-// ❗ Safe DB connection (prevents Render crash)
-connectDB().catch((err) => {
-    console.error("❌ MongoDB connection failed:", err.message);
-});
-
 const app = express();
 
 // ================= SECURITY =================
@@ -59,20 +54,31 @@ app.get("/", (req, res) => {
 // ================= ERROR HANDLER =================
 app.use(errorHandler);
 
-// ================= SERVER START =================
-const PORT = process.env.PORT || 5000;
+// ================= START SERVER (SAFE + FIXED) =================
+const startServer = async () => {
+    try {
+        await connectDB();
+        console.log("✅ MongoDB connected");
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-});
+        const server = app.listen(process.env.PORT || 5000, () => {
+            console.log(`🚀 Server running on port ${process.env.PORT || 5000}`);
+        });
 
-// ================= GLOBAL CRASH HANDLING =================
-process.on("unhandledRejection", (err) => {
-    console.error("❌ Unhandled Rejection:", err.message);
-    server.close(() => process.exit(1));
-});
+        // ================= GLOBAL ERROR HANDLING =================
+        process.on("unhandledRejection", (err) => {
+            console.error("❌ Unhandled Rejection:", err.message);
+            server.close(() => process.exit(1));
+        });
 
-process.on("uncaughtException", (err) => {
-    console.error("❌ Uncaught Exception:", err.message);
-    process.exit(1);
-});
+        process.on("uncaughtException", (err) => {
+            console.error("❌ Uncaught Exception:", err.message);
+            process.exit(1);
+        });
+
+    } catch (err) {
+        console.error("❌ DB Connection Failed:", err.message);
+        process.exit(1);
+    }
+};
+
+startServer();
