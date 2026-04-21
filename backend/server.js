@@ -54,7 +54,7 @@ app.get("/", (req, res) => {
 // ================= ERROR HANDLER =================
 app.use(errorHandler);
 
-// ================= START SERVER (SAFE + FIXED) =================
+// ================= START SERVER =================
 const startServer = async () => {
     try {
         await connectDB();
