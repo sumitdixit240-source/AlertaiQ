@@ -1,60 +1,42 @@
-const express = require("express");
+import express from "express";
+
 const router = express.Router();
 
-/**
- * Simple AI endpoint (Gemini/OpenAI ready placeholder)
- * You can later connect Gemini API here
- */
-
-// Health check
+// ================= TEST ROUTE =================
 router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "AlertAIQ AI route working 🚀",
-  });
+    res.json({
+        success: true,
+        message: "AI route working 🚀"
+    });
 });
 
-/**
- * AI Suggestion Generator (mock version)
- * You can replace this with Gemini/OpenAI API later
- */
-router.post("/suggest", async (req, res) => {
-  try {
-    const { service, category, amount, expiry } = req.body;
+// Example AI endpoint
+router.post("/generate", async (req, res) => {
+    try {
+        const { prompt } = req.body;
 
-    if (!service) {
-      return res.status(400).json({
-        success: false,
-        message: "Service is required",
-      });
+        if (!prompt) {
+            return res.status(400).json({
+                success: false,
+                message: "Prompt is required"
+            });
+        }
+
+        // Placeholder AI response (replace later with OpenAI if needed)
+        const response = `AI Response for: ${prompt}`;
+
+        res.json({
+            success: true,
+            response
+        });
+
+    } catch (error) {
+        console.error("AI Error:", error.message);
+        res.status(500).json({
+            success: false,
+            message: "AI processing failed"
+        });
     }
-
-    // Simple smart suggestion logic (temporary AI engine)
-    let suggestion = "";
-
-    if (category === "Tax Related") {
-      suggestion = `Pay your ${service} before due date to avoid penalty charges.`;
-    } else if (category === "Billing Related") {
-      suggestion = `Your ${service} bill of ₹${amount} should be monitored to avoid service interruption.`;
-    } else if (category === "SaaS Subscriptions") {
-      suggestion = `${service} subscription will expire on ${expiry}. Consider renewal early.`;
-    } else {
-      suggestion = `Monitor ${service} regularly to avoid disruption.`;
-    }
-
-    return res.json({
-      success: true,
-      input: req.body,
-      aiSuggestion: suggestion,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err) {
-    console.error("AI Route Error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "AI service error",
-    });
-  }
 });
 
-module.exports = router;
+export default router;
