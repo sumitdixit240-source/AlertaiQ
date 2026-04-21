@@ -20,20 +20,27 @@ transporter.verify((err) => {
   }
 });
 
-// Send OTP email function
+// ================= SEND OTP EMAIL =================
 const sendEmailOTP = async (email, otp) => {
-  await transporter.sendMail({
-    from: `"AlertAIQ" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Your OTP Code of Login to AlertaiQ is :  ",
-    html: `
-      <div style="font-family:Arial;padding:10px">
-        <h2>AlertAIQ Verification OTP</h2>
-        <h1 style="color:#4f46e5">${otp}</h1>
-        <p>This OTP expires in 5 minutes.</p>
-      </div>
-    `,
-  });
+  try {
+    await transporter.sendMail({
+      from: `"AlertAIQ" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "AlertAIQ OTP Verification Code",
+      html: `
+        <div style="font-family:Arial;padding:20px">
+          <h2>🔐 AlertAIQ OTP</h2>
+          <p>Your OTP is:</p>
+          <h1 style="color:#4f46e5">${otp}</h1>
+          <p>Valid for 5 minutes only.</p>
+        </div>
+      `,
+    });
+
+    console.log("📩 OTP sent successfully to:", email);
+  } catch (error) {
+    console.log("❌ Email send failed:", error.message);
+  }
 };
 
 module.exports = { sendEmailOTP };
