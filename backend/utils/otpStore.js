@@ -1,48 +1,30 @@
-const express = require("express");
-const router = express.Router();
+const otpStore = new Map();
 
-const otpStore = require("../utils/otpStore");
-const generateOTP = require("../utils/generateOTP");
-const transporter = require("../utils/mailer");
+// Add OTP
+otpStore.setOtp = (email, otp) => {
+  otpStore.set(email, {
+    otp,
+    expiresAt: Date.now() + 5 * 60 * 1000
+  });
+};
 
-// ================= SEND OTP =================
-router.post("/send-otp", async (req, res) => {
-  const { email } = req.body;
+// Verify OTP
+otpStore.verifyOtp = (email, otp) => {
+  const record = otpStore.get(email);
 
-  const otp = generateOTP();
+  if (!record) return { valid: false, message: "OTP not found" };
 
-  // Use function (clean)
-  otpStore.setOtp(email, otp);
-
-  try {
-    await transporter.sendMail({
-      from: `"AlertAIQ" <${process.env.EMAIL}>`,
-      to: email,
-      subject: "Your OTP",
-      text: `Your OTP is ${otp}`
-    });
-
-    console.log("✅ OTP SENT:", otp);
-
-    res.json({ message: "OTP sent" });
-  } catch (err) {
-    console.log("❌ EMAIL ERROR:", err.message);
-    res.status(500).json({ message: "Email failed" });
-  }
-});
-
-
-// ================= VERIFY OTP =================
-router.post("/verify-otp", (req, res) => {
-  const { email, otp } = req.body;
-
-  const result = otpStore.verifyOtp(email, otp);
-
-  if (!result.valid) {
-    return res.status(400).json({ message: result.message });
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(email);
+    return { valid: false, message: "OTP expired" };
   }
 
-  res.json({ message: "OTP verified successfully" });
-});
+  if (record.otp !== otp) {
+    return { valid: false, message: "Invalid OTP" };
+  }
 
-module.exports = router;
+  otpStore.delete(email);
+  return { valid: true };
+};
+
+module.exports = otpStore;
