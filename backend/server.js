@@ -3,14 +3,14 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
 
-// Cron job (must exist or comment it if missing)
+// Cron job (optional safe load)
 try {
   require("./jobs/cron");
 } catch (err) {
   console.log("Cron not loaded");
 }
 
-const app = express(); // ✅ MUST BE FIRST
+const app = express();
 
 // ---------------- MIDDLEWARE ----------------
 app.use(cors());
@@ -22,17 +22,21 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.log("DB Error:", err));
 
 // ---------------- ROUTES ----------------
-// IMPORTANT: ALL routes must export express.Router()
+
+// ALL routes MUST export express.Router()
 
 const authRoute = require("./routes/auth");
 const paymentRoute = require("./routes/payment");
 const alertRoute = require("./routes/alert");
-const mailerRoute = require("./services/mailer");
 const aiRoute = require("./routes/ai");
 const userRoute = require("./routes/User");
-const otpRoute = require("./models/OTP");
 
-// Razorpay OPTIONAL (only if file exists)
+// ⚠️ FIX: DO NOT use services or models in app.use
+// REMOVE these:
+// const mailerRoute = require("./services/mailer"); ❌
+// const otpRoute = require("./models/OTP"); ❌
+
+// OPTIONAL route (safe load)
 let razorpayRoute;
 try {
   razorpayRoute = require("./routes/razorpay");
@@ -44,16 +48,15 @@ try {
 app.use("/api/auth", authRoute);
 app.use("/api/payment", paymentRoute);
 app.use("/api/alerts", alertRoute);
-app.use("/api/mailer", mailerRoute);
 app.use("/api/ai", aiRoute);
 app.use("/api/user", userRoute);
-app.use("/api/otp", otpRoute);
 
+// Optional route
 if (razorpayRoute) {
   app.use("/api/razorpay", razorpayRoute);
 }
 
-// ---------------- TEST ----------------
+// ---------------- TEST ROUTE ----------------
 app.get("/", (req, res) => {
   res.send("AlertAIQ Backend Running 🚀");
 });
@@ -64,5 +67,3 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
-
-
