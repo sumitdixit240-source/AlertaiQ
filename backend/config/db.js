@@ -1,14 +1,19 @@
-import mongoose from "mongoose";
+import connectDB from "./config/db.js";
 
-const connectDB = async () => {
+const startServer = async () => {
     try {
-        const conn = await mongoose.connect(process.env.MONGO_URI);
+        await connectDB();
 
-        console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+        const PORT = process.env.PORT || 5000;
+
+        app.listen(PORT, () => {
+            console.log(`🚀 Server running on port ${PORT}`);
+        });
+
     } catch (error) {
-        console.error("❌ MongoDB Connection Error:", error.message);
+        console.error("❌ Failed to start server:", error.message);
         process.exit(1);
     }
 };
 
-export default connectDB;
+startServer();
