@@ -1,6 +1,6 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const jwt from "jsonwebtoken";
+const jwt = require("jsonwebtoken");
 const otpStore = require("../utils/otpStore");
 
 const User from "../models/User.js";
