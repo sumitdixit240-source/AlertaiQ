@@ -14,43 +14,65 @@ import paymentRoutes from "./routes/payment.js";
 import errorHandler from "./middleware/errorMiddleware.js";
 
 dotenv.config();
-connectDB();
+
+// ❗ Safe DB connection (prevents Render crash)
+connectDB().catch((err) => {
+    console.error("❌ MongoDB connection failed:", err.message);
+});
 
 const app = express();
 
-// Security Middleware
+// ================= SECURITY =================
 app.use(helmet());
+
 app.use(cors({
-    origin: "*", // change in production
+    origin: process.env.CLIENT_URL || "*",
     credentials: true
 }));
 
-// Rate Limiting
+// ================= RATE LIMIT =================
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false
 });
 app.use(limiter);
 
-// Body Parser
-app.use(express.json());
+// ================= BODY PARSER =================
+app.use(express.json({ limit: "10kb" }));
 
-// Routes
+// ================= ROUTES =================
 app.use("/api/auth", authRoutes);
 app.use("/api/alerts", alertRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/payment", paymentRoutes);
 
-// Health Check
+// ================= HEALTH CHECK =================
 app.get("/", (req, res) => {
-    res.send("API Running 🚀");
+    res.status(200).json({
+        status: "success",
+        message: "AlertAIQ API Running 🚀"
+    });
 });
 
-// Global Error Handler
+// ================= ERROR HANDLER =================
 app.use(errorHandler);
 
+// ================= SERVER START =================
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+const server = app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+});
+
+// ================= GLOBAL CRASH HANDLING =================
+process.on("unhandledRejection", (err) => {
+    console.error("❌ Unhandled Rejection:", err.message);
+    server.close(() => process.exit(1));
+});
+
+process.on("uncaughtException", (err) => {
+    console.error("❌ Uncaught Exception:", err.message);
+    process.exit(1);
 });
