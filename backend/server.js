@@ -6,9 +6,7 @@ const rateLimit = require("express-rate-limit");
 
 const connectDB = require("./config/db");
 
-const authRoutes = require("./routes/auth");
-
-const errorHandler = require("./middleware/errorMiddleware");
+const authRoutes = require("./routes/authRoutes");
 
 dotenv.config();
 
@@ -18,8 +16,7 @@ const app = express();
 app.use(helmet());
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || "*",
-  credentials: true
+  origin: "*"
 }));
 
 // rate limit
@@ -28,25 +25,23 @@ app.use(rateLimit({
   max: 100
 }));
 
+// body
 app.use(express.json());
 
 // routes
 app.use("/api/auth", authRoutes);
 
-// health
+// test route
 app.get("/", (req, res) => {
-  res.json({ message: "AlertAIQ API Running 🚀" });
+  res.send("Server Running ✅");
 });
-
-// error handler
-app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-// start server
+// start
 connectDB().then(() => {
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log("Server running on port", PORT);
   });
 }).catch(err => {
   console.log("DB error:", err.message);
