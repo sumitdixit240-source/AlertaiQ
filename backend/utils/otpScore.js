@@ -1,30 +1,20 @@
-const otpStore = new Map();
+const nodemailer = require("nodemailer");
 
-// Save OTP
-otpStore.setOtp = (email, otp) => {
-  otpStore.set(email, {
-    otp,
-    expiresAt: Date.now() + 5 * 60 * 1000 // 5 min
-  });
-};
-
-// Verify OTP
-otpStore.verifyOtp = (email, otp) => {
-  const data = otpStore.get(email);
-
-  if (!data) return { valid: false, message: "OTP not found" };
-
-  if (Date.now() > data.expiresAt) {
-    otpStore.delete(email);
-    return { valid: false, message: "OTP expired" };
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL,        // your gmail
+    pass: process.env.EMAIL_PASS    // APP PASSWORD (not normal password)
   }
+});
 
-  if (data.otp !== otp) {
-    return { valid: false, message: "Invalid OTP" };
+// Verify connection (important for debugging)
+transporter.verify((err, success) => {
+  if (err) {
+    console.log("❌ MAILER FAILED:", err.message);
+  } else {
+    console.log("✅ ALERTAIQ MAILER READY");
   }
+});
 
-  otpStore.delete(email);
-  return { valid: true };
-};
-
-module.exports = otpStore;
+module.exports = transporter;
