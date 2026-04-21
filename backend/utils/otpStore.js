@@ -1,30 +1,27 @@
 const otpStore = new Map();
 
-// Add OTP
-otpStore.setOtp = (email, otp) => {
+/**
+ * structure:
+ * email -> { otp, expiresAt }
+ */
+
+const setOTP = (email, otp) => {
   otpStore.set(email, {
     otp,
-    expiresAt: Date.now() + 5 * 60 * 1000
+    expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
   });
 };
 
-// Verify OTP
-otpStore.verifyOtp = (email, otp) => {
-  const record = otpStore.get(email);
-
-  if (!record) return { valid: false, message: "OTP not found" };
-
-  if (Date.now() > record.expiresAt) {
-    otpStore.delete(email);
-    return { valid: false, message: "OTP expired" };
-  }
-
-  if (record.otp !== otp) {
-    return { valid: false, message: "Invalid OTP" };
-  }
-
-  otpStore.delete(email);
-  return { valid: true };
+const getOTP = (email) => {
+  return otpStore.get(email);
 };
 
-module.exports = otpStore;
+const deleteOTP = (email) => {
+  otpStore.delete(email);
+};
+
+module.exports = {
+  setOTP,
+  getOTP,
+  deleteOTP
+};
