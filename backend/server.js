@@ -6,7 +6,7 @@ const rateLimit = require("express-rate-limit");
 
 const connectDB = require("./config/db");
 
-const authRoutes = require("./routes/auth.cjs");
+const authRoutes = require("./routes/auth.js");
 
 dotenv.config();
 
