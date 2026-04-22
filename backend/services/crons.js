@@ -2,7 +2,6 @@ const cron = require("node-cron");
 const Alert = require("../models/Alert");
 const sendMail = require("./mailer");
 
-// ⏱ Convert frequency to milliseconds
 const getIntervalMs = (freq) => {
   switch (freq) {
     case "1h": return 60 * 60 * 1000;
@@ -17,6 +16,8 @@ const getIntervalMs = (freq) => {
 };
 
 cron.schedule("* * * * *", async () => {
+  console.log("⏱ Cron running...");
+
   const now = new Date();
 
   try {
@@ -26,66 +27,54 @@ cron.schedule("* * * * *", async () => {
       const expiry = new Date(a.expiry);
       const diff = expiry - now;
 
-      // ❌ Skip expired
       if (diff <= 0) continue;
 
-      // ⏰ Calculate time left
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
 
-      // =========================
-      // 🎯 CASE 1: "3 days before"
-      // =========================
-      if (a.freq === "Once (3d Before)") {
+      // 🎯 3-day reminder
+      if (a.frequency === "Once (3d Before)") {
         if (diff <= 3 * 24 * 60 * 60 * 1000 && !a.reminderSent) {
+
           await sendMail(
             a.email,
             "⚠️ Renewal Reminder",
             `
-              <h2>${a.subCategory} Expiring Soon</h2>
-              <p><b>Category:</b> ${a.category}</p>
-              <p><b>Amount:</b> ₹${a.amount}</p>
-              <p><b>Expiry:</b> ${expiry}</p>
-              <hr/>
-              <h3>⏳ Time Left: ${days}d ${hours}h</h3>
-              <p>Please renew before expiry.</p>
+            <h2>${a.subCategory} Expiring Soon</h2>
+            <p><b>Category:</b> ${a.category}</p>
+            <p><b>Amount:</b> ₹${a.amount}</p>
+            <p><b>Expiry:</b> ${expiry}</p>
+            <h3>⏳ Time Left: ${days}d ${hours}h</h3>
             `
           );
 
           a.reminderSent = true;
           await a.save();
-          console.log("📩 3-day reminder sent:", a.subCategory);
         }
         continue;
       }
 
-      // =========================
-      // 🎯 CASE 2: Regular frequency
-      // =========================
-      const interval = getIntervalMs(a.freq);
+      // 🎯 Regular frequency
+      const interval = getIntervalMs(a.frequency);
       if (!interval) continue;
 
-      // First time OR interval passed
       if (!a.lastSent || (now - new Date(a.lastSent)) >= interval) {
 
         await sendMail(
           a.email,
           "⏳ Renewal Alert",
           `
-            <h2>${a.subCategory}</h2>
-            <p><b>Category:</b> ${a.category}</p>
-            <p><b>Amount:</b> ₹${a.amount}</p>
-            <p><b>Frequency:</b> ${a.freq}</p>
-            <p><b>Expiry:</b> ${expiry}</p>
-            <hr/>
-            <h3>⏰ Time Left: ${days}d ${hours}h</h3>
+          <h2>${a.subCategory}</h2>
+          <p><b>Category:</b> ${a.category}</p>
+          <p><b>Amount:</b> ₹${a.amount}</p>
+          <p><b>Frequency:</b> ${a.frequency}</p>
+          <p><b>Expiry:</b> ${expiry}</p>
+          <h3>⏰ Time Left: ${days}d ${hours}h</h3>
           `
         );
 
         a.lastSent = now;
         await a.save();
-
-        console.log("📩 Frequency mail sent:", a.subCategory);
       }
     }
 
