@@ -26,12 +26,13 @@ router.post("/register", async (req, res) => {
       name,
       email,
       password: hashed,
+      isVerified: false
     });
 
     await sendMail(
       email,
       "AlertAIQ Account Created",
-      `Welcome ${name}, your account has been created successfully.`
+      `Welcome ${name}, your account has been created successfully. Please verify OTP.`
     );
 
     res.json({ msg: "Account created", user });
@@ -53,7 +54,14 @@ router.post("/send-otp", async (req, res) => {
 
     const otp = generateOTP();
 
-    await OTP.create({ email, otp });
+    // ❌ FIX: remove old OTPs
+    await OTP.deleteMany({ email });
+
+    await OTP.create({
+      email,
+      otp,
+      createdAt: new Date()
+    });
 
     await sendMail(
       email,
@@ -80,6 +88,13 @@ router.post("/verify-otp", async (req, res) => {
     if (!record)
       return res.status(400).json({ msg: "Invalid or expired OTP" });
 
+    // ❌ FIX: mark user verified
+    await User.updateOne(
+      { email },
+      { isVerified: true }
+    );
+
+    // cleanup OTP
     await OTP.deleteMany({ email });
 
     res.json({ msg: "OTP verified successfully" });
@@ -98,6 +113,11 @@ router.post("/login", async (req, res) => {
     const user = await User.findOne({ email });
     if (!user)
       return res.status(400).json({ msg: "User not found" });
+
+    // ❌ FIX: block unverified users
+    if (!user.isVerified) {
+      return res.status(403).json({ msg: "Verify OTP first" });
+    }
 
     const match = await bcrypt.compare(password, user.password);
     if (!match)
