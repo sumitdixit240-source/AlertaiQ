@@ -556,7 +556,7 @@
             l.className = 'logout-screen';
             l.innerHTML = `
                 <div class="mb-6 text-6xl animate-bounce">👋</div>
-                <h2 class="text-3xl font-black text-white">SAYING GOODBYE...</h2>
+                <h2 class="text-3xl font-black text-white">SAYING GOODBYE ( Come Back Soon....)...</h2>
                 <p class="text-slate-400 mt-2">Closing secure session channels in 3 seconds</p>
                 <div class="mt-8 w-48 h-1 bg-white/5 rounded-full overflow-hidden">
                     <div class="h-full bg-indigo-500 animate-[progress_3s_linear]"></div>
@@ -565,7 +565,7 @@
             `;
             document.body.appendChild(l);
             setTimeout(() => {
-                window.location.href = "logo.html";
+                window.location.href = "login.html";
             }, 3000);
         };
 
