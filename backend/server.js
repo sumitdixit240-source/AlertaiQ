@@ -5,10 +5,10 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const mongoose = require("mongoose");
 
-const connectDB = require("./config/db"); 
+const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/auth");
-const nodeRoutes = require("./routes/nodes"); 
+const nodeRoutes = require("./routes/nodes");
 const alertRoutes = require("./routes/alert");
 
 dotenv.config();
@@ -19,11 +19,33 @@ const app = express();
 // ================= SECURITY =================
 app.use(helmet());
 
-app.use(cors({
-  origin: "*", // TODO: restrict in production
-  credentials: true
-}));
 
+// ✅ SAFE CORS (MERGED FIX)
+const allowedOrigins = [
+  "http://localhost:5000",
+  "https://alertai-q.vercel.app/" //  change after deployment
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // allow Postman / mobile apps (no origin)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+};
+
+app.use(cors(corsOptions));
+
+
+// ================= RATE LIMIT =================
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -37,7 +59,7 @@ app.use(express.json());
 
 // ================= ROUTES =================
 app.use("/api/auth", authRoutes);
-app.use("/api/nodes", nodeRoutes);   
+app.use("/api/nodes", nodeRoutes);
 app.use("/api", alertRoutes);
 
 
