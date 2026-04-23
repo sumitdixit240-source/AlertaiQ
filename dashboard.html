@@ -125,7 +125,6 @@
             <p id="overlay-sub" class="text-slate-400">Deploying AI monitors...</p>
         </div>
 
-        <!-- Default Success -->
         <div id="success-box" class="hidden flex flex-col items-center">
             <div class="w-20 h-20 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center text-4xl mb-6 border border-emerald-500/20">
                 <i class="fas fa-envelope-open-text"></i>
@@ -135,7 +134,6 @@
             <button onclick="hideNotifOverlay()" class="px-8 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-bold transition-all border border-white/10 uppercase text-[10px] tracking-widest">Close Dashboard</button>
         </div>
 
-        <!-- Post-Limit Upgrade Prompt -->
         <div id="post-limit-upgrade" class="hidden flex flex-col items-center max-w-md">
             <div class="w-20 h-20 bg-purple-500/20 text-purple-400 rounded-2xl flex items-center justify-center text-4xl mb-6 border border-purple-500/30 upgrade-anim">
                 <i class="fas fa-crown"></i>
@@ -154,7 +152,7 @@
         </div>
     </div>
 
-    <!-- Subscription Paywall Modal (Direct Access Block) -->
+    <!-- Subscription Paywall Modal -->
     <div id="paywall-modal" class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md">
         <div class="glass-card w-full max-w-md rounded-3xl p-8 border-purple-500/30 text-center premium-glow">
             <div class="w-20 h-20 bg-purple-500/20 text-purple-400 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-6">
@@ -196,9 +194,14 @@
 
         <main class="flex-1 max-w-7xl mx-auto w-full p-6 lg:p-8 space-y-12">
             <section>
-                <div class="mb-8">
-                    <h2 class="text-2xl font-bold text-white">Create New Node</h2>
-                    <p class="text-slate-500 text-sm">Select a specialized sector to begin monitoring.</p>
+                <div class="mb-8 flex justify-between items-end">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">Create New Node</h2>
+                        <p class="text-slate-500 text-sm">Select a specialized sector to begin monitoring.</p>
+                    </div>
+                    <button onclick="loadNodes()" class="text-[10px] font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 text-indigo-400 px-4 py-2 rounded-lg border border-white/5 transition-all">
+                        <i class="fas fa-sync-alt mr-2"></i> Sync Cloud
+                    </button>
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4" id="cat-grid"></div>
             </section>
@@ -264,18 +267,18 @@
         </div>
     </div>
 
-    <script type="module">
+    <script>
         const SECTORS = [
-            { name: "SaaS Subscriptions", icon: "fa-cloud", subs: ["Amazon Prime", "Netflix", "ChatGPT Plus", "Claude Pro", "Adobe CC", "Spotify", "GitHub Pro", "Midjourney", "Figma Pro", "Canva", "Dropbox", "Slack", "Zoom", "Youtube Premium", "Disney+", "LinkedIn Premium", "Hulu", "Microsoft 365", "Grammarly", "Cursor AI"] },
-            { name: "Billing Related", icon: "fa-receipt", subs: ["Phone Bill", "Electricity Bill", "Water Bill", "Gas Connection", "Broadband", "Postpaid Mobile", "DTH Recharge", "Society Maintenance", "Waste Disposal", "Cooking Gas", "Piped Water", "Home Security", "Cable TV", "Landline", "LPG Cylinder", "Municipal Bill", "Electricity Commercial", "Sewerage Tax", "Trade License", "Signage Bill"] },
-            { name: "Tax Related", icon: "fa-landmark", subs: ["GST Monthly", "Income Tax Advance", "Property Tax", "Professional Tax", "Municipal Tax", "Capital Gains", "TDS Filing", "Corporate Tax", "Wealth Tax", "Service Tax", "Custom Duty", "Excise Duty", "Vehicle Tax", "Toll Charges", "Road Tax", "Stamp Duty", "Gift Tax", "Luxury Tax", "Education Cess", "E-Way Bill"] },
-            { name: "Entertainment", icon: "fa-play-circle", subs: ["BookMyShow", "PVR Membership", "Xbox Pass", "PlayStation Plus", "Twitch Subs", "Steam Games", "Discord Nitro", "Eventbrite", "Concert Pass", "Cinema Club", "Audible", "Kindle Unlimited", "Magazines", "Patreon", "OnlyFans", "Apple One", "Epic Games", "Quest Store", "Nintendo Online", "Stadia"] },
-            { name: "Financial", icon: "fa-wallet", subs: ["Home Loan EMI", "Car Loan EMI", "Credit Card", "Mutual Fund SIP", "Life Insurance", "Health Insurance", "Term Plan", "PPF Installment", "NPS Contribution", "RD Deposit", "Stock Portfolio", "Bank Locker", "Audit Fees", "Personal Loan", "Business Loan", "Gold Bond", "Demat Charges", "Trading Fee", "Fixed Deposit", "Asset Mgmt"] },
-            { name: "Education", icon: "fa-graduation-cap", subs: ["School Fees", "College Fees", "Coursera", "Udemy", "Skillshare", "Masterclass", "Research Grant", "Library Card", "Language Class", "Coding Bootcamp", "Exam Fees", "Certification", "Tuition", "Hostel Fees", "School Bus", "Lab Fees", "Book Store", "Thesis Cost", "Alumni Fee", "Sports Coaching"] },
-            { name: "Healthcare", icon: "fa-heartbeat", subs: ["Pharmacy Refill", "Gym Membership", "Doctor Consult", "Lab Tests", "Yoga Class", "Therapy", "Vitamins", "Health Checkup", "Dental Care", "Eye Care", "Personal Trainer", "Healthy Meals", "Critical Care", "Accident Policy", "Wellness App", "Meditation", "Blood Bank", "Diagnostic", "Surgery Fund", "Vaccination"] },
-            { name: "Automotive", icon: "fa-car", subs: ["Petrol Expense", "Diesel Expense", "EV Charging", "Car Service", "Insurance Renewal", "Tire Change", "Wheel Alignment", "Car Wash", "Parking Fee", "FastTag", "Roadside Assist", "Driver Salary", "Chauffeur", "Spare Parts", "Registration", "PUC Cert", "Traffic Fine", "Garage Rent", "Accessories", "Navigation"] },
-            { name: "Real Estate", icon: "fa-home", subs: ["Flat Rent", "Office Lease", "Coworking Space", "Brokerage", "Property Maintenance", "Security Pay", "Cleaning Service", "Interior AMC", "Pest Control", "Lift AMC", "Gardening", "Lawn Care", "Pool Service", "House Tax", "Inventory", "Storage Rent", "Warehouse", "Real Estate Tax", "Renovation", "Home Insurance"] },
-            { name: "Business Ops", icon: "fa-briefcase", subs: ["Domain Renewal", "Web Hosting", "Cloud Compute", "API Usage", "Marketing Ads", "SEO Service", "Legal Fee", "Courier", "Freelance Pay", "Payroll", "Office Supplies", "Printing", "Trade Shows", "PR Agency", "Data Backup", "Software License", "Hardware AMC", "Logistics", "Inventory Sub", "Staff Welfare"] }
+            { name: "SaaS Subscriptions", icon: "fa-cloud", subs: ["Amazon Prime", "Netflix", "ChatGPT Plus", "Claude Pro", "Adobe CC", "Spotify", "GitHub Pro", "Midjourney", "Figma Pro", "Canva"] },
+            { name: "Billing Related", icon: "fa-receipt", subs: ["Phone Bill", "Electricity Bill", "Water Bill", "Gas Connection", "Broadband", "Postpaid Mobile"] },
+            { name: "Tax Related", icon: "fa-landmark", subs: ["GST Monthly", "Income Tax Advance", "Property Tax", "Professional Tax"] },
+            { name: "Entertainment", icon: "fa-play-circle", subs: ["BookMyShow", "PVR Membership", "Xbox Pass", "PlayStation Plus", "Twitch Subs"] },
+            { name: "Financial", icon: "fa-wallet", subs: ["Home Loan EMI", "Car Loan EMI", "Credit Card", "Mutual Fund SIP"] },
+            { name: "Education", icon: "fa-graduation-cap", subs: ["School Fees", "College Fees", "Coursera", "Udemy", "Skillshare"] },
+            { name: "Healthcare", icon: "fa-heartbeat", subs: ["Pharmacy Refill", "Gym Membership", "Doctor Consult", "Lab Tests"] },
+            { name: "Automotive", icon: "fa-car", subs: ["Petrol Expense", "EV Charging", "Car Service", "Insurance Renewal"] },
+            { name: "Real Estate", icon: "fa-home", subs: ["Flat Rent", "Office Lease", "Coworking Space", "Property Maintenance"] },
+            { name: "Business Ops", icon: "fa-briefcase", subs: ["Domain Renewal", "Web Hosting", "Cloud Compute", "API Usage"] }
         ];
 
         let nodes = [];
@@ -283,14 +286,51 @@
         let activeIntervals = {};
         let isProUser = false;
 
-        // Bootstrapping
         window.onload = () => {
             loadFromStorage();
             renderCategories();
             renderNodes();
             updateBurn();
             initMesh();
+            loadNodes(); // Call Cloud API loading on boot
             document.getElementById('main-ui').classList.remove('opacity-0');
+        };
+
+        // --- API Integration ---
+        window.loadNodes = async function() {
+            const token = localStorage.getItem("token");
+            if (!token) return;
+
+            try {
+                const res = await fetch("/api/nodes", {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    const apiData = await res.json();
+                    const mappedNodes = apiData.map(node => ({
+                        id: 'node_' + (node.id || Math.random().toString(36).substr(2, 9)),
+                        cat: node.category || "SaaS Subscriptions",
+                        sub: node.title,
+                        freq: node.frequency || "24h",
+                        amt: parseFloat(node.amount) || 0,
+                        expiry: node.expiryDate || new Date().toISOString(),
+                        aiSuggestion: node.content || "Fetched from cloud sync.",
+                        isApiNode: true
+                    }));
+
+                    if (mappedNodes.length > 0) {
+                        // Merge logic: prefer API data over local during sync
+                        nodes = mappedNodes;
+                        saveToStorage();
+                        renderNodes();
+                        updateBurn();
+                    }
+                }
+            } catch (err) {
+                console.error("Cloud Sync Error:", err);
+            }
         };
 
         function loadFromStorage() {
@@ -337,10 +377,6 @@
 
         window.upgradeAccount = () => {
             document.getElementById('overlay').classList.remove('hidden');
-            document.getElementById('loader-box').classList.remove('hidden');
-            document.getElementById('post-limit-upgrade').classList.add('hidden');
-            document.getElementById('paywall-modal').classList.add('hidden');
-
             document.getElementById('loader-box').innerHTML = `
                 <div class="flex flex-col items-center py-8">
                     <div class="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4"></div>
@@ -365,19 +401,13 @@
                 freq: document.getElementById('form-freq').value,
                 amt: parseFloat(document.getElementById('form-amt').value),
                 expiry: document.getElementById('form-expiry').value,
-                created: Date.now(),
-                aiSuggestion: "Analyzing market trends..."
+                created: Date.now()
             };
 
             closeModal();
             showNotifOverlay();
             
-            // Sending Confirmation Email with details
-            sendConfirmationEmail(data);
-
-            const aiFeedback = await getAISuggestion(data);
-            data.aiSuggestion = aiFeedback;
-
+            data.aiSuggestion = await getAISuggestion(data);
             nodes.unshift(data);
             saveToStorage();
             newlyAddedId = data.id;
@@ -388,60 +418,21 @@
             }, 1000);
         };
 
-        async function sendConfirmationEmail(node) {
-            // Simulated Email Sending Logic
-            const apiKey = "";
-            const systemPrompt = "You are an automated email notification system for RenewAI. Create a professional, detailed confirmation email body for the user acknowledging their new entity creation.";
-            const userQuery = `User created a new monitoring entity with the following details: 
-            Category: ${node.cat}
-            Service: ${node.sub}
-            Amount: ₹${node.amt}
-            Alert Frequency: ${node.freq}
-            Expiry Scheduled For: ${node.expiry}
-            
-            Please confirm that these details have been synchronized with their notification hub.`;
-            
+        async function getAISuggestion(node) {
+            const apiKey = ""; // Environment handles this
+            const query = `Optimize ${node.sub} costing ₹${node.amt}.`;
             try {
-                await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        contents: [{ parts: [{ text: userQuery }] }],
-                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                        contents: [{ parts: [{ text: query }] }],
+                        systemInstruction: { parts: [{ text: "One short actionable tip, max 10 words." }] } 
                     })
                 });
-                console.log("Detailed Confirmation Email Sent for: " + node.sub);
-            } catch (e) {
-                console.error("Email dispatch simulation failed", e);
-            }
-        }
-
-        async function getAISuggestion(node) {
-            const apiKey = "";
-            const systemPrompt = "You are a cost optimization bot. Give one short, actionable tip (max 12 words) for the service mentioned.";
-            const userQuery = `I just added a subscription for ${node.sub} costing ₹${node.amt}. It expires on ${node.expiry}.`;
-            
-            let retries = 0;
-            const delays = [1000, 2000, 4000, 8000, 16000];
-
-            while (retries < 5) {
-                try {
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            contents: [{ parts: [{ text: userQuery }] }],
-                            systemInstruction: { parts: [{ text: systemPrompt }] }
-                        })
-                    });
-                    const result = await res.json();
-                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "Check for family plan options to save more.";
-                } catch (e) {
-                    await new Promise(r => setTimeout(r, delays[retries]));
-                    retries++;
-                }
-            }
-            return "Auto-renewal monitor active. Review 3 days before expiry.";
+                const result = await res.json();
+                return result.candidates?.[0]?.content?.parts?.[0]?.text || "Review 3 days before.";
+            } catch (e) { return "Check for seasonal family plan discounts."; }
         }
 
         function renderNodes() {
@@ -466,7 +457,7 @@
                                 <p class="text-[9px] font-black text-slate-500 uppercase">${node.cat}</p>
                             </div>
                         </div>
-                        <button onclick="del('${node.id}')" class="text-slate-600 hover:text-rose-500 transition-colors"><i class="fas fa-trash-alt"></i></button>
+                        <button onclick="delNode('${node.id}')" class="text-slate-600 hover:text-rose-500 transition-colors"><i class="fas fa-trash-alt"></i></button>
                     </div>
 
                     <div class="flex items-baseline gap-2">
@@ -476,7 +467,7 @@
 
                     <div class="bg-indigo-500/5 p-3 rounded-xl border border-indigo-500/10">
                          <p class="text-[10px] text-indigo-400 font-bold uppercase mb-1">AI INSIGHT</p>
-                         <p class="text-xs text-slate-300 italic">"${node.aiSuggestion || 'Analyzing usage patterns...'}"</p>
+                         <p class="text-xs text-slate-300 italic">"${node.aiSuggestion || 'Analyzing market...'}"</p>
                     </div>
 
                     <div class="timer-grid" id="timer-${node.id}">
@@ -502,8 +493,7 @@
                 const diff = end - now;
 
                 if (diff <= 0) {
-                    el.innerHTML = `<div class="col-span-full py-2 bg-rose-500/10 text-rose-500 rounded-lg text-center text-xs font-bold uppercase tracking-widest border border-rose-500/20">SERVICE EXPIRED</div>`;
-                    if (activeIntervals[id]) clearInterval(activeIntervals[id]);
+                    el.innerHTML = `<div class="col-span-full py-2 bg-rose-500/10 text-rose-500 rounded-lg text-center text-xs font-bold uppercase tracking-widest border border-rose-500/20">EXPIRED</div>`;
                     return;
                 }
 
@@ -529,7 +519,7 @@
             activeIntervals[id] = setInterval(update, 1000);
         }
 
-        window.del = (id) => {
+        window.delNode = (id) => {
             nodes = nodes.filter(n => n.id !== id);
             saveToStorage();
             renderNodes();
@@ -537,77 +527,95 @@
         };
 
         function updateBurn() {
-            const total = nodes.reduce((a, b) => a + b.amt, 0);
-            document.getElementById('burn-meter').innerText = `₹${total.toLocaleString()} Total Monthly Burn`;
+            const total = nodes.reduce((acc, n) => acc + n.amt, 0);
+            document.getElementById('burn-meter').innerText = `₹${total.toLocaleString()} Total Burn`;
         }
 
-        // --- Logout Flow ---
-        window.triggerLogout = () => {
-            document.getElementById('logout-confirm-modal').classList.remove('hidden');
-        };
-
-        window.closeLogoutModal = () => {
-            document.getElementById('logout-confirm-modal').classList.add('hidden');
-        };
-
-        window.confirmLogout = () => {
-            closeLogoutModal();
-            const l = document.createElement('div');
-            l.className = 'logout-screen';
-            l.innerHTML = `
-                <div class="mb-6 text-6xl animate-bounce">👋</div>
-                <h2 class="text-3xl font-black text-white">SAYING GOODBYE ( Come Back Soon....)...</h2>
-                <p class="text-slate-400 mt-2">Closing secure session channels in 3 seconds</p>
-                <div class="mt-8 w-48 h-1 bg-white/5 rounded-full overflow-hidden">
-                    <div class="h-full bg-indigo-500 animate-[progress_3s_linear]"></div>
-                </div>
-                <style>@keyframes progress { from { width: 0%; } to { width: 100%; } }</style>
-            `;
-            document.body.appendChild(l);
-            setTimeout(() => {
-                window.location.href = "login.html";
-            }, 3000);
-        };
-
         function showNotifOverlay() {
-            document.getElementById('overlay').classList.remove('hidden');
-            document.getElementById('loader-box').classList.remove('hidden');
-            document.getElementById('success-box').classList.add('hidden');
-            document.getElementById('post-limit-upgrade').classList.add('hidden');
+            const overlay = document.getElementById('overlay');
+            overlay.classList.remove('hidden');
+            const loader = document.getElementById('loader-box');
+            const success = document.getElementById('success-box');
+            const upgrade = document.getElementById('post-limit-upgrade');
+
+            loader.classList.remove('hidden');
+            success.classList.add('hidden');
+            upgrade.classList.add('hidden');
 
             setTimeout(() => {
-                document.getElementById('loader-box').classList.add('hidden');
-                
-                // NEW LOGIC: If user just created their 2nd entity (limit), show upgrade prompt
-                if (nodes.length === 2 && !isProUser) {
-                    document.getElementById('post-limit-upgrade').classList.remove('hidden');
+                loader.classList.add('hidden');
+                if (nodes.length >= 2 && !isProUser) {
+                    upgrade.classList.remove('hidden');
                 } else {
-                    document.getElementById('success-box').classList.remove('hidden');
+                    success.classList.remove('hidden');
                 }
             }, 1800);
         }
 
-        window.hideNotifOverlay = () => { 
-            document.getElementById('overlay').classList.add('hidden'); 
-        }
+        window.hideNotifOverlay = () => document.getElementById('overlay').classList.add('hidden');
 
+        // Logout Functions
+        window.triggerLogout = () => document.getElementById('logout-confirm-modal').classList.remove('hidden');
+        window.closeLogoutModal = () => document.getElementById('logout-confirm-modal').classList.add('hidden');
+        window.confirmLogout = () => {
+            const overlay = document.createElement('div');
+            overlay.className = 'logout-screen';
+            overlay.innerHTML = `
+                <div class="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
+                <h1 class="text-white font-black text-xl">Disconnecting...</h1>
+            `;
+            document.body.appendChild(overlay);
+            setTimeout(() => { 
+                localStorage.removeItem("token");
+                window.location.reload(); 
+            }, 1500);
+        };
+
+        // Mesh Background
         function initMesh() {
-            const c = document.getElementById('mesh-canvas');
-            const ctx = c.getContext('2d');
-            let w, h, p = [];
-            const resize = () => { w = c.width = window.innerWidth; h = c.height = window.innerHeight; };
+            const canvas = document.getElementById('mesh-canvas');
+            const ctx = canvas.getContext('2d');
+            let w, h, particles = [];
+
+            const resize = () => {
+                w = canvas.width = window.innerWidth;
+                h = canvas.height = window.innerHeight;
+            };
+
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * w;
+                    this.y = Math.random() * h;
+                    this.vx = (Math.random() - 0.5) * 0.5;
+                    this.vy = (Math.random() - 0.5) * 0.5;
+                }
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    if(this.x < 0 || this.x > w) this.vx *= -1;
+                    if(this.y < 0 || this.y > h) this.vy *= -1;
+                }
+            }
+
             resize();
-            for(let i=0; i<30; i++) p.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*0.5, vy:(Math.random()-0.5)*0.5});
+            for(let i=0; i<40; i++) particles.push(new Particle());
+
             function draw() {
                 ctx.clearRect(0,0,w,h);
-                ctx.strokeStyle = "rgba(99, 102, 241, 0.1)";
-                p.forEach(pt => {
-                    pt.x += pt.vx; pt.y += pt.vy;
-                    if(pt.x<0||pt.x>w) pt.vx*=-1; if(pt.y<0||pt.y>h) pt.vy*=-1;
-                    p.forEach(pt2 => {
-                        const d = Math.hypot(pt.x-pt2.x, pt.y-pt2.y);
-                        if(d<200) { ctx.beginPath(); ctx.moveTo(pt.x,pt.y); ctx.lineTo(pt2.x,pt2.y); ctx.stroke(); }
-                    });
+                ctx.strokeStyle = 'rgba(99, 102, 241, 0.15)';
+                ctx.lineWidth = 0.5;
+                particles.forEach((p, i) => {
+                    p.update();
+                    for(let j=i+1; j<particles.length; j++) {
+                        const p2 = particles[j];
+                        const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                        if(dist < 250) {
+                            ctx.beginPath();
+                            ctx.moveTo(p.x, p.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
+                        }
+                    }
                 });
                 requestAnimationFrame(draw);
             }

@@ -98,7 +98,7 @@
         #overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.8);
             backdrop-filter: blur(12px);
             display: flex;
             align-items: center;
@@ -167,6 +167,27 @@
             border-color: var(--border);
             background: rgba(255,255,255,0.02);
             transform: translateY(-2px);
+        }
+
+        /* NEW ANIMATIONS */
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0px rgba(99, 102, 241, 0.7); }
+            100% { box-shadow: 0 0 0 15px rgba(99, 102, 241, 0); }
+        }
+
+        .btn-flash {
+            animation: pulse-border 1.5s infinite;
+        }
+        
+        .shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
         }
     </style>
 </head>
@@ -249,9 +270,9 @@
                     </div>
                 </div>
                 <div class="bg-white/5 rounded-xl p-4 font-mono-custom text-[10px] text-indigo-300/60 leading-relaxed border border-white/5">
-                    > Scanning: 42 Active Subscriptions...<br>
-                    > Alert: Electricity bill due in 2 days.<br>
-                    > Insight: You saved $45 this month by canceling ChatGPT Plus.
+                    &gt; Scanning: 42 Active Subscriptions...<br>
+                    &gt; Alert: Electricity bill due in 2 days.<br>
+                    &gt; Insight: You saved $45 this month by canceling ChatGPT Plus.
                 </div>
             </div>
         </div>
@@ -265,8 +286,6 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            
-            <!-- 1. SaaS Subscriptions -->
             <div class="glass-card p-6 feature-card">
                 <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mb-6">
                     <i class="fas fa-cloud text-blue-500 text-xl"></i>
@@ -280,7 +299,6 @@
                 </div>
             </div>
 
-            <!-- 2. Billing & Utilities -->
             <div class="glass-card p-6 feature-card">
                 <div class="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center mb-6">
                     <i class="fas fa-lightbulb text-amber-500 text-xl"></i>
@@ -293,7 +311,6 @@
                 </div>
             </div>
 
-            <!-- 3. Tax Tracking -->
             <div class="glass-card p-6 feature-card">
                 <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-6">
                     <i class="fas fa-file-invoice-dollar text-emerald-500 text-xl"></i>
@@ -305,80 +322,67 @@
                     <span class="text-[9px] bg-white/5 px-2 py-1 rounded text-slate-400">Government</span>
                 </div>
             </div>
-
-            <!-- 4. Financial Commitments -->
-            <div class="glass-card p-6 feature-card">
-                <div class="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center mb-6">
-                    <i class="fas fa-piggy-bank text-purple-500 text-xl"></i>
-                </div>
-                <h3 class="text-lg font-bold text-white mb-2">Loans & Finance</h3>
-                <p class="text-sm text-slate-500 mb-4">Track Home/Car EMIs, Credit Cards, and Mutual Fund SIPs automatically.</p>
-                <div class="flex flex-wrap gap-2">
-                    <span class="text-[9px] bg-white/5 px-2 py-1 rounded text-slate-400">Investments</span>
-                    <span class="text-[9px] bg-white/5 px-2 py-1 rounded text-slate-400">Banking</span>
-                </div>
-            </div>
-
-            <!-- 5. Healthcare & Wellness -->
-            <div class="glass-card p-6 feature-card">
-                <div class="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center mb-6">
-                    <i class="fas fa-heartbeat text-red-500 text-xl"></i>
-                </div>
-                <h3 class="text-lg font-bold text-white mb-2">Health & Wellness</h3>
-                <p class="text-sm text-slate-500 mb-4">Gym fees, pharmacy bills, and insurance premiums all in one view.</p>
-                <div class="flex flex-wrap gap-2">
-                    <span class="text-[9px] bg-white/5 px-2 py-1 rounded text-slate-400">Medical</span>
-                    <span class="text-[9px] bg-white/5 px-2 py-1 rounded text-slate-400">Fitness</span>
-                </div>
-            </div>
-
-            <!-- 6. Business Operations -->
-            <div class="glass-card p-6 feature-card">
-                <div class="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center mb-6">
-                    <i class="fas fa-briefcase text-indigo-500 text-xl"></i>
-                </div>
-                <h3 class="text-lg font-bold text-white mb-2">Business Ops</h3>
-                <p class="text-sm text-slate-500 mb-4">Enterprise level tracking: Cloud APIs, Payroll, Marketing, and Compliance.</p>
-                <div class="flex flex-wrap gap-2">
-                    <span class="text-[9px] bg-white/5 px-2 py-1 rounded text-slate-400">Corporate</span>
-                    <span class="text-[9px] bg-white/5 px-2 py-1 rounded text-slate-400">Operations</span>
-                </div>
-            </div>
-
         </div>
     </div>
 </main>
 
 <!-- Authentication Modal Overlay -->
 <div id="overlay">
-    <div class="glass-card w-full max-w-[480px] relative overflow-hidden m-4">
+    <div class="glass-card w-full max-w-[480px] relative overflow-hidden m-4 min-h-[550px] flex flex-col">
         
-        <!-- Modal UI Elements -->
-        <button id="modal-close" onclick="UI.close()" class="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition z-20">
+        <button id="modal-close" onclick="UI.close()" class="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition z-50">
             <i class="fas fa-times text-sm"></i>
         </button>
 
-        <!-- Loading State -->
-        <div id="verifyBox" class="hidden absolute inset-0 bg-[#0f0f12]/95 z-30 flex flex-col items-center justify-center p-12">
-            <div class="w-20 h-24 border border-white/5 relative bg-white/5 rounded-2xl flex items-center justify-center mb-6 overflow-hidden">
+        <!-- Dynamic Processing Box -->
+        <div id="verifyBox" class="hidden absolute inset-0 bg-[#0f0f12]/98 z-30 flex flex-col items-center justify-center p-12 text-center">
+            <div class="w-24 h-24 border border-indigo-500/30 relative bg-indigo-500/5 rounded-full flex items-center justify-center mb-8 overflow-hidden shadow-[0_0_50px_rgba(99,102,241,0.1)]">
                 <div class="scan-line"></div>
-                <i class="fas fa-shield-halved text-3xl text-indigo-500"></i>
+                <i class="fas fa-fingerprint text-4xl text-indigo-500 animate-pulse"></i>
             </div>
-            <h3 class="text-lg font-bold text-white tracking-tight">Checking Your Account</h3>
-            <p class="text-slate-500 text-sm mt-2 text-center">Securing your connection to the grid.</p>
+            <h3 id="verify-title" class="text-xl font-bold text-white tracking-tight">Initiating Sequence</h3>
+            <p id="verify-desc" class="text-slate-500 text-sm mt-3 leading-relaxed">Securing your spot in the future of finance...</p>
+            
+            <div class="mt-8 w-48 h-1 bg-white/5 rounded-full overflow-hidden">
+                <div class="h-full bg-indigo-500 shimmer w-full"></div>
+            </div>
         </div>
 
-        <!-- Success State -->
-        <div id="successBox" class="hidden absolute inset-0 bg-white z-40 flex flex-col items-center justify-center p-12 text-center">
-            <div class="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-2xl shadow-emerald-500/20">
-                <i class="fas fa-check text-white text-3xl"></i>
+        <!-- NEW Welcome / Success Box -->
+        <div id="welcomeBox" class="hidden absolute inset-0 bg-black z-40 flex flex-col items-center justify-center p-10 text-center">
+            <div class="mb-6 relative">
+                <div class="w-24 h-24 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/40 rotate-12">
+                    <i class="fas fa-check-double text-white text-4xl -rotate-12"></i>
+                </div>
+                <div class="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full border-4 border-black animate-ping"></div>
             </div>
-            <h3 class="text-2xl font-bold text-black tracking-tight">System Ready</h3>
-            <p id="greet-text" class="text-slate-500 text-sm mt-2">Access granted. Opening your portal.</p>
+            
+            <h3 class="text-3xl font-extrabold text-white mb-2">Welcome to the Tribe!</h3>
+            <p class="text-indigo-400 font-bold text-sm tracking-[0.2em] uppercase mb-6">Registration Complete</p>
+            
+            <div class="glass-card bg-white/5 p-6 mb-8 border-white/10">
+                <p id="quote-text" class="italic text-slate-300 text-sm leading-relaxed">"The goal isn't more money. The goal is living your life on your terms."</p>
+                <div class="w-8 h-px bg-indigo-500 mx-auto mt-4"></div>
+            </div>
+
+            <p class="text-slate-400 text-xs mb-6">You are now part of the AlertAIQ elite network.</p>
+
+            <button onclick="UI.showLogin()" class="btn-startup btn-flash w-full py-4 text-sm tracking-widest uppercase font-black">
+                Login to Dashboard
+            </button>
         </div>
 
-        <!-- Login Form -->
-        <div id="loginBox" class="p-10 md:p-12 space-y-8">
+        <!-- Success Box (Generic) -->
+        <div id="successBox" class="hidden absolute inset-0 bg-indigo-600 z-40 flex flex-col items-center justify-center p-12 text-center">
+            <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-6 shadow-2xl">
+                <i class="fas fa-check text-indigo-600 text-3xl"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-white tracking-tight">Access Granted</h3>
+            <p class="text-indigo-100 text-sm mt-2">Opening your high-security portal.</p>
+        </div>
+
+        <!-- Login View -->
+        <div id="loginBox" class="p-10 md:p-12 space-y-8 flex-1 flex flex-col justify-center">
             <div class="space-y-2">
                 <h2 class="text-3xl font-bold tracking-tight">Member Access</h2>
                 <p class="text-slate-500 text-sm font-medium">Log in to view your tracking dashboard.</p>
@@ -421,8 +425,8 @@
             </div>
         </div>
 
-        <!-- Registration Form -->
-        <div id="registerBox" class="hidden p-10 md:p-12 space-y-8">
+        <!-- Register View -->
+        <div id="registerBox" class="hidden p-10 md:p-12 space-y-8 flex-1 flex flex-col justify-center">
             <div class="space-y-2">
                 <h2 class="text-3xl font-bold tracking-tight text-white">Get Started</h2>
                 <p class="text-slate-500 text-sm font-medium">Join 50,000+ users saving money with AlertAIQ.</p>
@@ -457,6 +461,14 @@
 <script>
 const BACKEND_URL = "https://alertaiq.onrender.com/api/auth";
 
+const quotes = [
+    "\"Beware of little expenses; a small leak will sink a great ship.\"",
+    "\"The goal isn't more money. The goal is living your life on your terms.\"",
+    "\"Do not save what is left after spending, but spend what is left after saving.\"",
+    "\"Finance is not merely about money. It's about life.\"",
+    "\"Control your money or its lack will control you.\""
+];
+
 document.addEventListener('mousemove', (e) => {
     const glow = document.getElementById('glow');
     if (glow) {
@@ -488,9 +500,12 @@ const UI = {
         document.getElementById('main-btn').innerText = 'Unlock Dashboard';
         document.getElementById('verifyBox').classList.add('hidden');
         document.getElementById('successBox').classList.add('hidden');
+        document.getElementById('welcomeBox').classList.add('hidden');
+        document.getElementById('modal-close').classList.remove('hidden');
     },
 
     showLogin() {
+        this.reset();
         document.getElementById("loginBox").classList.remove("hidden");
         document.getElementById("registerBox").classList.add("hidden");
     },
@@ -498,9 +513,12 @@ const UI = {
     showRegister() {
         document.getElementById("registerBox").classList.remove("hidden");
         document.getElementById("loginBox").classList.add("hidden");
+        document.getElementById('welcomeBox').classList.add('hidden');
     },
 
-    showVerification() {
+    showVerification(title, desc) {
+        if(title) document.getElementById('verify-title').innerText = title;
+        if(desc) document.getElementById('verify-desc').innerText = desc;
         document.getElementById("verifyBox").classList.remove("hidden");
         document.getElementById("modal-close").classList.add("hidden");
     },
@@ -513,6 +531,15 @@ const UI = {
     showSuccess() {
         document.getElementById("successBox").classList.remove("hidden");
         document.getElementById("verifyBox").classList.add("hidden");
+    },
+
+    showWelcome() {
+        const quote = quotes[Math.floor(Math.random() * quotes.length)];
+        document.getElementById('quote-text').innerText = quote;
+        document.getElementById('welcomeBox').classList.remove('hidden');
+        document.getElementById('verifyBox').classList.add('hidden');
+        document.getElementById('registerBox').classList.add('hidden');
+        document.getElementById("modal-close").classList.remove("hidden");
     },
 
     setMode(m) {
@@ -538,41 +565,31 @@ const UI = {
     notify(msg) {
         const box = document.getElementById("msg-box");
         const text = document.getElementById("msg-text");
-
         text.innerText = msg;
         box.classList.add("active");
-
         setTimeout(() => box.classList.remove("active"), 4000);
     }
 };
 
 const Auth = {
-
-    // ================= LOGIN =================
     async handleLogin() {
         const email = document.getElementById("email").value.trim();
         const password = document.getElementById("password").value.trim();
         const otp = document.getElementById("otp-code").value.trim();
 
         if (!email) return UI.notify("Enter email");
-
-        UI.showVerification();
+        UI.showVerification("Authentication", "Verifying credentials with secure node...");
 
         try {
-            // ================= OTP FLOW =================
             if (UI.mode === 'otp') {
-
-                // STEP 1: SEND OTP
                 if (UI.step === 'idle') {
                     const res = await fetch(`${BACKEND_URL}/send-otp`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ email })
                     });
-
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.msg || "OTP send failed");
-
                     UI.step = 'otp_sent';
                     UI.hideVerification();
                     UI.notify("OTP sent to email");
@@ -581,53 +598,40 @@ const Auth = {
                     return;
                 }
 
-                // STEP 2: VERIFY OTP
                 const res = await fetch(`${BACKEND_URL}/verify-otp`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email, otp })
                 });
-
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.msg || "OTP invalid");
-
+                if (data.token) localStorage.setItem("token", data.token);
                 localStorage.setItem("user", JSON.stringify(data.user || { email }));
-
                 UI.showSuccess();
-
-                setTimeout(() => {
-                    window.location.href = "dashboard.html";
-                }, 1500);
-
+                setTimeout(() => { window.location.href = "dashboard.html"; }, 1500);
                 return;
             }
 
-            // ================= PASSWORD LOGIN =================
             const res = await fetch(`${BACKEND_URL}/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password })
             });
-
             const data = await res.json();
-            if (!res.ok) throw new Error(data.msg || "Login failed");
-
-            localStorage.setItem("token", data.token);
-            localStorage.setItem("user", JSON.stringify(data.user));
-
-            UI.showSuccess();
-
-            setTimeout(() => {
-                window.location.href = "dashboard.html";
-            }, 1500);
-
+            if (data.token) {
+                localStorage.setItem("token", data.token);
+                if(data.user) localStorage.setItem("user", JSON.stringify(data.user));
+                UI.showSuccess();
+                setTimeout(() => { window.location.href = "dashboard.html"; }, 1500);
+            } else {
+                throw new Error(data.msg || "Login failed");
+            }
         } catch (err) {
             UI.hideVerification();
             UI.notify(err.message);
         }
     },
 
-    // ================= REGISTER =================
     async register() {
         const name = document.getElementById("rname").value.trim();
         const email = document.getElementById("remail").value.trim();
@@ -635,6 +639,23 @@ const Auth = {
 
         if (!name || !email || !password)
             return UI.notify("Fill in all details");
+
+        // Start engaging process
+        UI.showVerification("Constructing Profile", "Setting up your financial shield...");
+        
+        // Dynamic messages during wait
+        const messages = [
+            "Encrypting security keys...",
+            "Syncing with the expense grid...",
+            "Finalizing your dashboard...",
+            "Welcome to the inner circle..."
+        ];
+        let msgIdx = 0;
+        const interval = setInterval(() => {
+            if(msgIdx < messages.length) {
+                document.getElementById('verify-desc').innerText = messages[msgIdx++];
+            }
+        }, 800);
 
         try {
             const res = await fetch(`${BACKEND_URL}/register`, {
@@ -644,12 +665,17 @@ const Auth = {
             });
 
             const data = await res.json();
+            clearInterval(interval);
+            
             if (!res.ok) throw new Error(data.msg || "Register failed");
 
-            UI.notify("Account created! Now login.");
-            UI.showLogin();
+            // Show beautiful success popup
+            UI.showWelcome();
+            UI.notify("Welcome to AlertAIQ!");
 
         } catch (err) {
+            clearInterval(interval);
+            UI.hideVerification();
             UI.notify(err.message);
         }
     }
