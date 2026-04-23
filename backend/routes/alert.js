@@ -1,17 +1,24 @@
 const express = require("express");
-const OTP = require("../models/OTP");
-const sendMail = require("../services/mailer"); // FIXED
-
 const router = express.Router();
 
-router.get("/", (req, res) => {
+const OTP = require("../models/OTP");
+const Alert = require("../models/Alert"); // ✅ REQUIRED
+const sendMail = require("../services/mailer");
+const auth = require("../middleware/auth"); // ✅ REQUIRED
+
+
+// ================= TEST ROUTE =================
+router.get("/", auth, (req, res) => {
   res.json({
     success: true,
-    message: "Alert route working 🚀"
+    message: "Alert route working 🚀",
+    user: req.user.id
   });
 });
 
-router.post("/create", async (req, res) => {
+
+// ================= CREATE ALERT =================
+router.post("/create", auth, async (req, res) => {
   try {
     const { title, message } = req.body;
 
@@ -22,26 +29,57 @@ router.post("/create", async (req, res) => {
       });
     }
 
+    const alert = await Alert.create({
+      title,
+      message,
+      userId: req.user.id   // 🔐 USER ISOLATION
+    });
+
     res.json({
       success: true,
       message: "Alert created",
-      data: { title, message }
+      data: alert
     });
 
   } catch (error) {
+    console.error("CREATE ALERT ERROR:", error.message);
     res.status(500).json({ success: false });
   }
 });
 
-router.post("/send-otp", async (req, res) => {
+
+// ================= GET USER ALERTS =================
+router.get("/my", auth, async (req, res) => {
   try {
-    const { email } = req.body;
+    const alerts = await Alert.find({
+      userId: req.user.id   // 🔐 FILTER
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: alerts
+    });
+
+  } catch (error) {
+    console.error("GET ALERTS ERROR:", error.message);
+    res.status(500).json({ success: false });
+  }
+});
+
+
+// ================= SEND OTP =================
+router.post("/send-otp", auth, async (req, res) => {
+  try {
+    const email = req.user.email; // 🔐 DO NOT TRUST BODY
 
     const otp = Math.floor(100000 + Math.random() * 900000);
 
-    await OTP.create({ email, otp });
+    await OTP.create({
+      email,
+      otp,
+      userId: req.user.id   // 🔐 LINK TO USER
+    });
 
-    // FIXED USAGE
     await sendMail(
       email,
       "Your OTP",
@@ -51,28 +89,43 @@ router.post("/send-otp", async (req, res) => {
     res.json({ success: true, message: "OTP sent" });
 
   } catch (error) {
-    console.log(error);
+    console.error("SEND OTP ERROR:", error.message);
     res.status(500).json({ success: false });
   }
 });
 
-router.post("/verify-otp", async (req, res) => {
-  try {
-    const { email, otp } = req.body;
 
-    const record = await OTP.findOne({ email, otp });
+// ================= VERIFY OTP =================
+router.post("/verify-otp", auth, async (req, res) => {
+  try {
+    const { otp } = req.body;
+
+    const record = await OTP.findOne({
+      otp,
+      userId: req.user.id   // 🔐 STRICT MATCH
+    });
 
     if (!record) {
-      return res.status(400).json({ success: false });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP"
+      });
     }
 
-    await OTP.deleteMany({ email });
+    await OTP.deleteMany({
+      userId: req.user.id   // 🔐 CLEAN ONLY USER DATA
+    });
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      message: "OTP verified"
+    });
 
   } catch (error) {
+    console.error("VERIFY OTP ERROR:", error.message);
     res.status(500).json({ success: false });
   }
 });
+
 
 module.exports = router;

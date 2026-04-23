@@ -5,6 +5,7 @@ const User = require("../models/User");
 const OTP = require("../models/OTP");
 const sendMail = require("../services/mailer");
 const generateOTP = require("../utils/generateOTP");
+const auth = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -14,15 +15,12 @@ router.post("/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    console.log("REGISTER HIT:", email);
-
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ msg: "User already exists" });
     }
 
-    // ✅ password is hashed by schema (NO bcrypt here)
-    const user = await User.create({
+    await User.create({
       name,
       email,
       password,
@@ -33,12 +31,11 @@ router.post("/register", async (req, res) => {
       email,
       "AlertAIQ Account Created",
       `Hi ${name}, your account is created. Please verify OTP.`
-    ).catch(err => console.error("MAIL ERROR:", err.message));
+    ).catch(() => {});
 
-    res.json({ msg: "Account created", user });
+    res.json({ msg: "Account created successfully" });
 
   } catch (err) {
-    console.error("REGISTER ERROR:", err);
     res.status(500).json({ msg: err.message });
   }
 });
@@ -48,8 +45,6 @@ router.post("/register", async (req, res) => {
 router.post("/send-otp", async (req, res) => {
   try {
     const { email } = req.body;
-
-    console.log("SEND OTP HIT:", email);
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ msg: "User not found" });
@@ -64,18 +59,15 @@ router.post("/send-otp", async (req, res) => {
       createdAt: new Date()
     });
 
-    console.log("OTP GENERATED:", otp);
-
     await sendMail(
       email,
-      "AlertAIQ Login OTP",
-      `Your OTP is ${otp}, valid for 5 minutes. Do not share it.`
-    ).catch(err => console.error("MAIL ERROR:", err.message));
+      "AlertAIQ OTP",
+      `Your OTP is ${otp}. Valid for 5 minutes.`
+    ).catch(() => {});
 
     res.json({ msg: "OTP sent successfully" });
 
   } catch (err) {
-    console.error("SEND OTP ERROR:", err);
     res.status(500).json({ msg: err.message });
   }
 });
@@ -86,17 +78,13 @@ router.post("/verify-otp", async (req, res) => {
   try {
     const { email, otp } = req.body;
 
-    console.log("VERIFY HIT:", email, otp);
-
     const record = await OTP.findOne({ email });
+    if (!record) return res.status(400).json({ msg: "OTP not found" });
 
-    if (!record) {
-      return res.status(400).json({ msg: "OTP not found or expired" });
-    }
+    const expired =
+      Date.now() - record.createdAt.getTime() > 5 * 60 * 1000;
 
-    const isExpired = Date.now() - record.createdAt.getTime() > 5 * 60 * 1000;
-
-    if (isExpired) {
+    if (expired) {
       await OTP.deleteMany({ email });
       return res.status(400).json({ msg: "OTP expired" });
     }
@@ -111,7 +99,7 @@ router.post("/verify-otp", async (req, res) => {
     const user = await User.findOne({ email });
 
     const token = jwt.sign(
-      { id: user._id, email: user.email },
+      { id: user._id },   // 🔥 IMPORTANT: keep payload minimal
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -126,7 +114,6 @@ router.post("/verify-otp", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("VERIFY ERROR:", err);
     res.status(500).json({ msg: err.message });
   }
 });
@@ -137,21 +124,14 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    console.log("LOGIN HIT:", email);
-
-    // 🔥 required because password is select:false in schema
     const user = await User.findOne({ email }).select("+password");
-
-    if (!user) {
-      return res.status(400).json({ msg: "User not found" });
-    }
+    if (!user) return res.status(400).json({ msg: "User not found" });
 
     if (!user.isVerified) {
       return res.status(403).json({ msg: "Verify OTP first" });
     }
 
     const isMatch = await user.comparePassword(password);
-
     if (!isMatch) {
       return res.status(400).json({ msg: "Wrong password" });
     }
@@ -160,7 +140,7 @@ router.post("/login", async (req, res) => {
     await user.save();
 
     const token = jwt.sign(
-      { id: user._id, email: user.email },
+      { id: user._id },   // 🔥 IMPORTANT FIX
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -174,15 +154,12 @@ router.post("/login", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("LOGIN ERROR:", err);
     res.status(500).json({ msg: err.message });
   }
 });
 
 
 // ================= GET CURRENT USER =================
-const auth = require("../middleware/auth");
-
 router.get("/me", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
@@ -191,6 +168,5 @@ router.get("/me", auth, async (req, res) => {
     res.status(500).json({ msg: err.message });
   }
 });
-
 
 module.exports = router;
