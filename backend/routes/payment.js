@@ -13,12 +13,25 @@ const router = express.Router();
 // ================= INIT =================
 let razorpay = null;
 
-if (Razorpay && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+if (
+    Razorpay &&
+    process.env.RAZORPAY_KEY_ID &&
+    process.env.RAZORPAY_KEY_SECRET
+) {
     razorpay = new Razorpay({
         key_id: process.env.RAZORPAY_KEY_ID,
         key_secret: process.env.RAZORPAY_KEY_SECRET
     });
 }
+
+// ================= HEALTH CHECK =================
+router.get("/", (req, res) => {
+    res.json({
+        success: true,
+        message: "Payment route working 🚀",
+        razorpay: !!razorpay
+    });
+});
 
 // ================= CREATE ORDER =================
 router.post("/create-order", async (req, res) => {
@@ -32,29 +45,32 @@ router.post("/create-order", async (req, res) => {
 
         const { amount } = req.body;
 
-        if (!amount) {
+        if (!amount || amount <= 0) {
             return res.status(400).json({
                 success: false,
-                message: "Amount required"
+                message: "Valid amount is required"
             });
         }
 
-        const order = await razorpay.orders.create({
-            amount: amount * 100,
+        const options = {
+            amount: Math.round(amount * 100),
             currency: "INR",
-            receipt: `receipt_${Date.now()}`
-        });
+            receipt: `receipt_${Date.now()}`,
+            payment_capture: 1
+        };
 
-        res.json({
+        const order = await razorpay.orders.create(options);
+
+        return res.status(200).json({
             success: true,
             order
         });
 
     } catch (error) {
         console.error("Create Order Error:", error.message);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: "Order creation failed"
+            message: "Failed to create order"
         });
     }
 });
@@ -62,23 +78,30 @@ router.post("/create-order", async (req, res) => {
 // ================= VERIFY PAYMENT =================
 router.post("/verify", (req, res) => {
     try {
+        if (!razorpay) {
+            return res.status(503).json({
+                success: false,
+                message: "Payment service not available"
+            });
+        }
+
         const {
             razorpay_order_id,
             razorpay_payment_id,
             razorpay_signature
         } = req.body;
 
-        const body = razorpay_order_id + "|" + razorpay_payment_id;
+        const body = `${razorpay_order_id}|${razorpay_payment_id}`;
 
-        const expected = crypto
+        const expectedSignature = crypto
             .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
             .update(body)
             .digest("hex");
 
-        if (expected === razorpay_signature) {
-            return res.json({
+        if (expectedSignature === razorpay_signature) {
+            return res.status(200).json({
                 success: true,
-                message: "Payment verified"
+                message: "Payment verified successfully"
             });
         }
 
@@ -88,9 +111,10 @@ router.post("/verify", (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({
+        console.error("Verify Payment Error:", error.message);
+        return res.status(500).json({
             success: false,
-            message: "Verification failed"
+            message: "Payment verification failed"
         });
     }
 });
