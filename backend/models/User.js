@@ -9,61 +9,74 @@ const userSchema = new mongoose.Schema(
       trim: true,
       minlength: 2,
       maxlength: 50,
-      default: "User" // ✅ fallback for old records
+      default: "User"
     },
 
     email: {
       type: String,
       required: true,
-      unique: true, // index
+      unique: true,
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, "Invalid email format"],
+      match: [/^\S+@\S+\.\S+$/, "Invalid email format"]
     },
 
     password: {
       type: String,
       required: true,
       minlength: 6,
+      select: false // 🔥 prevents password leak
     },
 
     isVerified: {
       type: Boolean,
-      default: false, // ✅ safe for old users
+      default: false
     },
 
-    // ✅ NEW (won’t break anything)
     role: {
       type: String,
       enum: ["user", "admin"],
-      default: "user",
+      default: "user"
     },
 
-    // ✅ optional tracking
     lastLogin: {
       type: Date,
-      default: null,
+      default: null
     }
   },
   { timestamps: true }
 );
 
 
-// ================= PASSWORD HASH =================
-// ✅ Only hash when modified (prevents double hash)
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
 
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
+// ================= PASSWORD HASH (FIXED & SAFE) =================
+userSchema.pre("save", async function () {
+  try {
+    // 🔥 Only hash if password is modified
+    if (!this.isModified("password")) return;
+
+    // 🔥 Prevent double hashing
+    if (this.password.startsWith("$2a$") || this.password.startsWith("$2b$")) {
+      return;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+
+  } catch (err) {
+    console.error("Password hashing error:", err);
+    throw err;
+  }
 });
+
 
 
 // ================= PASSWORD COMPARE =================
 userSchema.methods.comparePassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+  if (!this.password) return false;
+  return bcrypt.compare(enteredPassword, this.password);
 };
+
 
 
 module.exports = mongoose.model("User", userSchema);
