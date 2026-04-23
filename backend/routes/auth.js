@@ -2,7 +2,6 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 
 const User = require("../models/User");
-const auth = require("../middleware/auth");
 const OTP = require("../models/OTP");
 const sendMail = require("../services/mailer");
 const generateOTP = require("../utils/generateOTP");
@@ -182,7 +181,7 @@ router.post("/login", async (req, res) => {
 
 
 // ================= GET CURRENT USER =================
-const auth = require("../middleware/authMiddleware");
+const auth = require("../middleware/auth");
 
 router.get("/me", auth, async (req, res) => {
   try {
