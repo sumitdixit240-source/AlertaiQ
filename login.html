@@ -210,6 +210,7 @@
 <div class="grid-overlay"></div>
 <div id="glow" class="glow-cursor"></div>
 
+<!-- Custom Message Box for System Notifications -->
 <div id="msg-box" class="glass-card px-5 py-4 flex items-center gap-4 border-l-4 border-indigo-500">
     <div class="w-8 h-8 bg-indigo-500/10 rounded-full flex items-center justify-center flex-shrink-0">
         <i class="fas fa-shield-check text-indigo-500 text-sm"></i>
@@ -228,8 +229,8 @@
         <span class="text-lg font-extrabold tracking-tight">Alert<span class="text-indigo-500">AIQ</span></span>
     </div>
     <div class="hidden md:flex items-center gap-8 text-[13px] font-semibold">
-        <a href="#services" class="text-white hover:opacity-80 transition">Services</a>
-        <a href="#pricing" class="text-slate-400 hover:text-white transition">Pricing</a>
+        <a href="#" class="text-white hover:opacity-80 transition">Services</a>
+        <a href="#" class="text-slate-400 hover:text-white transition">Pricing</a>
         <button onclick="UI.open()" class="text-indigo-400 hover:text-indigo-300 transition">Login</button>
     </div>
     <button onclick="UI.open()" class="md:hidden w-9 h-9 bg-white/5 rounded-lg flex items-center justify-center text-white">
@@ -286,7 +287,6 @@
                     &gt; Alert: Electricity bill due in 2 days.<br>
                     &gt; Insight: Saved $45 this month on ChatGPT Plus.
                 </div>
-                <div class="absolute inset-0 shimmer opacity-10 pointer-events-none"></div>
             </div>
         </div>
     </div>
@@ -299,6 +299,7 @@
             <i class="fas fa-times text-xs"></i>
         </button>
 
+        <!-- Verification/Scanning State -->
         <div id="verifyBox" class="hidden absolute inset-0 bg-[#050507] z-[120] flex flex-col items-center justify-center p-8 text-center">
             <div class="scan-container">
                 <div class="scan-ring-bold"></div>
@@ -375,7 +376,7 @@
             <div class="space-y-4">
                 <div class="input-group p-3.5 flex items-center gap-3">
                     <i class="far fa-user text-slate-500 text-xs"></i>
-                    <input id="rname" class="bg-transparent w-full outline-none text-sm text-white" placeholder="Full Name">
+                    <input id="rname" class="bg-transparent w-full outline-none text-sm text-white" placeholder="Username (Display Name)">
                 </div>
                 <div class="input-group p-3.5 flex items-center gap-3">
                     <i class="far fa-envelope text-slate-500 text-xs"></i>
@@ -383,7 +384,7 @@
                 </div>
                 <div class="input-group p-3.5 flex items-center gap-3">
                     <i class="far fa-lock text-slate-500 text-xs"></i>
-                    <input id="rpass" type="password" class="bg-transparent w-full outline-none text-sm text-white" placeholder="Set Security Key">
+                    <input id="rpass" type="password" class="bg-transparent w-full outline-none text-sm text-white" placeholder="Set Security Password">
                 </div>
             </div>
 
@@ -399,8 +400,8 @@
 </div>
 
 <script>
-// ✅ FIXED BACKEND URL - Direct production link
-const BACKEND_URL = "https://alertaiq.onrender.com/api/auth";
+// ✅ FIXED BACKEND CONFIGURATION
+const BACKEND_URL = "https://alertaiq.onrender.com";
 
 const UI = {
     mode: 'otp',
@@ -499,13 +500,13 @@ const Auth = {
         try {
             if (UI.mode === 'otp') {
                 if (UI.step === 'idle') {
-                    const res = await fetch(`${BACKEND_URL}/send-otp`, {
+                    const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: { "Content-Type": "application/json", "Accept": "application/json" },
                         body: JSON.stringify({ email })
                     });
                     const data = await res.json();
-                    if (!res.ok) throw new Error(data.msg || "Failed to send OTP");
+                    if (!res.ok) throw new Error(data.message || data.msg || "Failed to send OTP");
 
                     UI.step = 'otp_sent';
                     UI.hideVerification();
@@ -515,13 +516,13 @@ const Auth = {
                     return;
                 }
 
-                const res = await fetch(`${BACKEND_URL}/verify-otp`, {
+                const res = await fetch(`${BACKEND_URL}/api/auth/verify-otp`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
                     body: JSON.stringify({ email, otp })
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.msg || "OTP invalid");
+                if (!res.ok) throw new Error(data.message || data.msg || "OTP invalid");
                 
                 localStorage.setItem("token", data.token);
                 UI.showSuccess();
@@ -529,13 +530,13 @@ const Auth = {
                 return;
             }
 
-            const res = await fetch(`${BACKEND_URL}/login`, {
+            const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
                 body: JSON.stringify({ email, password })
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.msg || "Login failed");
+            if (!res.ok) throw new Error(data.message || data.msg || "Login failed");
 
             localStorage.setItem("token", data.token);
             UI.showSuccess();
@@ -548,31 +549,46 @@ const Auth = {
     },
 
     async register() {
-        const name = document.getElementById("rname").value.trim();
+        const username = document.getElementById("rname").value.trim();
         const email = document.getElementById("remail").value.trim();
         const password = document.getElementById("rpass").value.trim();
 
-        if (!name || !email || !password) return UI.notify("⚠️ Fill all fields");
+        if (!username || !email || !password) return UI.notify("⚠️ Fill all fields");
 
         UI.showVerification("Constructing Profile", "Setting up security...");
         try {
-            const res = await fetch(`${BACKEND_URL}/register`, {
+            const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, email, password })
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify({ 
+                    username: username,
+                    name: username, 
+                    email: email, 
+                    password: password 
+                })
             });
+            
             const data = await res.json();
-            if (!res.ok) throw new Error(data.msg || "Registration failed");
+            
+            if (!res.ok) {
+                throw new Error(data.message || data.msg || "Registration failed");
+            }
 
-            UI.notify("✅ Successful! Redirecting to login...");
+            UI.notify("✅ Account Created! Please Login.");
             setTimeout(() => UI.showLogin(), 2000);
+            
         } catch (err) {
             UI.hideVerification();
             UI.notify("❌ " + err.message);
+            console.error("Registration Error:", err);
         }
     }
 };
 
+// Background interaction
 document.addEventListener('mousemove', (e) => {
     const glow = document.getElementById('glow');
     if (glow) {
