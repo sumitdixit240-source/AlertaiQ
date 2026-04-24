@@ -19,11 +19,12 @@
             color: #ffffff;
             font-family: 'Plus Jakarta Sans', sans-serif;
             margin: 0;
-            height: 100vh;
-            overflow: hidden;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
+            touch-action: manipulation;
         }
 
         /* Modern AI Background Grid */
@@ -33,16 +34,18 @@
             background-image: 
                 linear-gradient(to right, var(--glass) 1px, transparent 1px),
                 linear-gradient(to bottom, var(--glass) 1px, transparent 1px);
-            background-size: 80px 80px;
-            mask-image: radial-gradient(circle at 50% 50%, black, transparent 80%);
+            background-size: clamp(40px, 8vw, 80px) clamp(40px, 8vw, 80px);
+            mask-image: radial-gradient(circle at 50% 50%, black, transparent 90%);
             z-index: -1;
         }
 
         /* Glowing Neural Pulse */
         .glow {
             position: absolute;
-            width: 40vw;
-            height: 40vw;
+            width: 80vw;
+            height: 80vw;
+            max-width: 800px;
+            max-height: 800px;
             background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
             border-radius: 50%;
             filter: blur(80px);
@@ -51,8 +54,8 @@
         }
 
         @keyframes pulse {
-            0% { transform: translate(-10%, -10%) scale(1); opacity: 0.5; }
-            100% { transform: translate(10%, 10%) scale(1.2); opacity: 0.8; }
+            0% { transform: translate(-5%, -5%) scale(1); opacity: 0.4; }
+            100% { transform: translate(5%, 5%) scale(1.1); opacity: 0.7; }
         }
 
         /* AI Scanning Effect */
@@ -81,6 +84,9 @@
             transform: translateY(20px) scale(0.95);
             transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
             text-align: center;
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
         }
 
         .step.active {
@@ -90,39 +96,42 @@
             transform: translateY(0) scale(1);
         }
 
-        /* Typography */
+        /* Typography - Fluid Sizing */
         .headline {
-            font-size: clamp(2rem, 5vw, 4.5rem);
+            font-size: clamp(2.25rem, 8vw, 5.5rem);
             font-weight: 800;
             letter-spacing: -0.05em;
             background: linear-gradient(to bottom, #fff 40%, rgba(255,255,255,0.4));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            line-height: 1.1;
+            line-height: 1.05;
+            padding: 0 10px;
         }
 
         .description {
             color: #9ca3af;
-            font-size: 1.125rem;
+            font-size: clamp(0.95rem, 2.5vw, 1.125rem);
             max-width: 500px;
-            margin: 1.5rem auto;
+            margin: clamp(1rem, 4vh, 1.5rem) auto;
             line-height: 1.6;
+            padding: 0 20px;
         }
 
-        /* Modern AI Button */
+        /* Modern AI Button - Mobile optimized targets */
         .btn-modern {
             position: relative;
             background: #fff;
             color: #000;
-            padding: 1rem 2.5rem;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 1rem;
+            padding: 1rem 2rem;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 0.95rem;
             transition: all 0.3s ease;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
-            margin-top: 1rem;
+            min-width: 180px;
             box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
         }
 
@@ -130,49 +139,67 @@
             background: transparent;
             color: #fff;
             border: 1px solid var(--border);
-            padding: 1rem 2.5rem;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 1rem;
+            padding: 1rem 2rem;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 0.95rem;
             transition: all 0.3s ease;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
-            margin-top: 1rem;
+            min-width: 180px;
             backdrop-filter: blur(10px);
         }
 
-        .btn-modern:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.5);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.05);
-            border-color: rgba(255, 255, 255, 0.2);
-            transform: translateY(-2px);
+        @media (hover: hover) {
+            .btn-modern:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 12px 40px rgba(59, 130, 246, 0.5);
+            }
+            .btn-secondary:hover {
+                background: rgba(255, 255, 255, 0.05);
+                border-color: rgba(255, 255, 255, 0.2);
+                transform: translateY(-3px);
+            }
         }
 
         /* Progress Dots */
         .dot-container {
             position: fixed;
-            bottom: 40px;
+            bottom: clamp(30px, 8vh, 60px);
+            left: 50%;
+            transform: translateX(-50%);
             display: flex;
-            gap: 8px;
+            gap: 10px;
+            z-index: 20;
         }
 
         .dot {
-            width: 6px;
-            height: 6px;
-            background: rgba(255,255,255,0.1);
+            width: 8px;
+            height: 8px;
+            background: rgba(255,255,255,0.15);
             border-radius: 50%;
-            transition: all 0.5s ease;
+            transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
         }
 
         .dot.active {
-            width: 24px;
+            width: 32px;
             background: var(--primary);
             border-radius: 10px;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+        }
+
+        /* Mobile specific layout tweaks */
+        @media (max-width: 640px) {
+            .btn-container {
+                width: 100%;
+                padding: 0 20px;
+                flex-direction: column;
+            }
+            .btn-modern, .btn-secondary {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -182,38 +209,38 @@
     <div class="glow"></div>
     <div class="scan-line"></div>
 
-    <div class="relative z-10 w-full px-6">
+    <div class="relative z-10 w-full px-4 sm:px-6">
         <!-- Step 1 -->
         <div id="step-1" class="step active">
-            <span class="text-blue-500 font-bold tracking-[0.4em] uppercase text-[10px] mb-4 block">System Active</span>
+            <span class="text-blue-500 font-bold tracking-[0.4em] uppercase text-[9px] sm:text-[10px] mb-4 block">System Active</span>
             <h1 class="headline">Intelligence that<br>anticipates.</h1>
             <p class="description">"AleraiQ transforms data into foresight, ensuring you never miss a critical moment."</p>
         </div>
 
         <!-- Step 2 -->
         <div id="step-2" class="step">
-            <span class="text-blue-500 font-bold tracking-[0.4em] uppercase text-[10px] mb-4 block">Our Commitment</span>
+            <span class="text-blue-500 font-bold tracking-[0.4em] uppercase text-[9px] sm:text-[10px] mb-4 block">Our Commitment</span>
             <h1 class="headline">Seamless<br>Integration.</h1>
             <p class="description">We build relationships based on absolute reliability. Your priorities are our commands.</p>
         </div>
 
         <!-- Step 3: Final Portal Experience -->
         <div id="step-3" class="step">
-            <div class="mb-6 inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full">
+            <div class="mb-6 inline-flex items-center gap-2 px-4 py-1.5 bg-white/5 border border-white/10 rounded-full">
                 <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-blue-100">Ready for Launch</span>
+                <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-blue-100">Ready for Launch</span>
             </div>
             <h1 class="headline mb-2 text-7xl md:text-9xl">AleraiQ</h1>
             <p class="description">Smart Alerts, Reminders & Expiry Tracking System</p>
             
-            <div class="flex flex-col md:flex-row items-center justify-center gap-4 mt-6">
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8 btn-container">
                 <a href="login.html" class="btn-modern">
                     Login
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                 </a>
                 <a href="dashboard.html" class="btn-secondary">
                     Dashboard
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                 </a>
             </div>
         </div>

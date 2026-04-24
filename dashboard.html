@@ -104,7 +104,7 @@
 
     <!-- Logout Confirmation Modal -->
     <div id="logout-confirm-modal" class="fixed inset-0 z-[120] hidden flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
-        <div class="glass-card w-full max-w-sm rounded-3xl p-8 border-white/10 text-center">
+        <div class="glass-card w-full max-sm rounded-3xl p-8 border-white/10 text-center">
             <div class="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center text-2xl mx-auto mb-6">
                 <i class="fas fa-power-off"></i>
             </div>
@@ -184,7 +184,10 @@
                 </div>
                 <div class="flex items-center gap-4">
                     <div id="subscription-badge" class="hidden px-3 py-1 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full text-[10px] font-bold uppercase tracking-tighter">PRO USER</div>
-                    <span id="local-status" class="text-[10px] font-mono text-slate-500 hidden md:block">Session Synchronized</span>
+                    <div id="sync-indicator" class="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/5">
+                        <div id="sync-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                        <span id="sync-text" class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cloud Synced</span>
+                    </div>
                     <button onclick="triggerLogout()" class="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all">
                         <i class="fas fa-sign-out-alt"></i>
                     </button>
@@ -200,7 +203,7 @@
                         <p class="text-slate-500 text-sm">Select a specialized sector to begin monitoring.</p>
                     </div>
                     <button onclick="loadNodes()" class="text-[10px] font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 text-indigo-400 px-4 py-2 rounded-lg border border-white/5 transition-all">
-                        <i class="fas fa-sync-alt mr-2"></i> Sync Cloud
+                        <i class="fas fa-sync-alt mr-2"></i> Force Sync
                     </button>
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4" id="cat-grid"></div>
@@ -286,7 +289,21 @@
         let activeIntervals = {};
         let isProUser = false;
 
-        // Secure ID helper
+        const setSyncStatus = (status) => {
+            const dot = document.getElementById('sync-dot');
+            const text = document.getElementById('sync-text');
+            if (status === 'syncing') {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-blue-500 animate-spin';
+                text.innerText = 'Syncing...';
+            } else if (status === 'error') {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500';
+                text.innerText = 'Sync Error';
+            } else {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
+                text.innerText = 'Cloud Synced';
+            }
+        };
+
         function getUserIdFromToken() {
             const token = localStorage.getItem("token");
             if (!token) return null;
@@ -307,11 +324,13 @@
             document.getElementById('main-ui').classList.remove('opacity-0');
         };
 
-        // --- API Integration ---
+        // --- Backend Sync Logic ---
+
         window.loadNodes = async function() {
             const token = localStorage.getItem("token");
             if (!token) return;
 
+            setSyncStatus('syncing');
             try {
                 const res = await fetch("/api/nodes", {
                     method: "GET",
@@ -325,25 +344,77 @@
                     const mappedNodes = apiData
                         .filter(n => !n.userId || n.userId === userId)
                         .map(node => ({
-                            id: 'node_' + (node.id || Math.random().toString(36).substr(2, 9)),
+                            id: node.id, // Using raw server ID
                             cat: node.category || "SaaS Subscriptions",
                             sub: node.title,
                             freq: node.frequency || "24h",
                             amt: parseFloat(node.amount) || 0,
                             expiry: node.expiryDate || new Date().toISOString(),
-                            aiSuggestion: node.content || "Fetched from cloud sync.",
-                            isApiNode: true
+                            aiSuggestion: node.content || "Fetched from cloud sync."
                         }));
 
                     nodes = mappedNodes;
                     saveToStorage();
                     renderNodes();
                     updateBurn();
+                    setSyncStatus('synced');
                 }
             } catch (err) {
                 console.error("Cloud Sync Error:", err);
+                setSyncStatus('error');
             }
         };
+
+        async function pushNodeToCloud(nodeData) {
+            const token = localStorage.getItem("token");
+            if (!token) return null;
+
+            setSyncStatus('syncing');
+            try {
+                const res = await fetch("/api/nodes", {
+                    method: "POST",
+                    headers: { 
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        title: nodeData.sub,
+                        category: nodeData.cat,
+                        amount: nodeData.amt,
+                        frequency: nodeData.freq,
+                        expiryDate: nodeData.expiry,
+                        content: nodeData.aiSuggestion
+                    })
+                });
+
+                if (res.ok) {
+                    const saved = await res.json();
+                    setSyncStatus('synced');
+                    return saved.id;
+                }
+            } catch (err) {
+                setSyncStatus('error');
+            }
+            return null;
+        }
+
+        async function deleteNodeFromCloud(nodeId) {
+            const token = localStorage.getItem("token");
+            if (!token) return;
+
+            setSyncStatus('syncing');
+            try {
+                await fetch(`/api/nodes/${nodeId}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                setSyncStatus('synced');
+            } catch (err) {
+                setSyncStatus('error');
+            }
+        }
+
+        // --- UI Interactions ---
 
         function loadFromStorage() {
             const userId = getUserIdFromToken();
@@ -360,10 +431,7 @@
 
         function saveToStorage() {
             const userId = getUserIdFromToken();
-            localStorage.setItem(
-                `renew_ai_nodes_${userId}`,
-                JSON.stringify(nodes)
-            );
+            localStorage.setItem(`renew_ai_nodes_${userId}`, JSON.stringify(nodes));
         }
 
         function renderCategories() {
@@ -413,28 +481,32 @@
         document.getElementById('node-form').onsubmit = async (e) => {
             e.preventDefault();
             
-            const data = {
-                id: 'node_' + Date.now(),
+            const newNode = {
                 cat: document.getElementById('form-cat-val').value,
                 sub: document.getElementById('form-sub').value,
                 freq: document.getElementById('form-freq').value,
                 amt: parseFloat(document.getElementById('form-amt').value),
-                expiry: document.getElementById('form-expiry').value,
-                created: Date.now()
+                expiry: document.getElementById('form-expiry').value
             };
 
             closeModal();
             showNotifOverlay();
             
-            data.aiSuggestion = await getAISuggestion(data);
-            nodes.unshift(data);
-            saveToStorage();
-            newlyAddedId = data.id;
+            newNode.aiSuggestion = await getAISuggestion(newNode);
+            
+            // Sync with backend before updating UI
+            const cloudId = await pushNodeToCloud(newNode);
+            if (cloudId) {
+                newNode.id = cloudId;
+                nodes.unshift(newNode);
+                saveToStorage();
+                newlyAddedId = newNode.id;
 
-            setTimeout(() => {
-                renderNodes();
-                updateBurn();
-            }, 1000);
+                setTimeout(() => {
+                    renderNodes();
+                    updateBurn();
+                }, 1000);
+            }
         };
 
         async function getAISuggestion(node) {
@@ -538,7 +610,11 @@
             activeIntervals[id] = setInterval(update, 1000);
         }
 
-        window.delNode = (id) => {
+        window.delNode = async (id) => {
+            // Delete from backend first
+            await deleteNodeFromCloud(id);
+            
+            // Update local state
             nodes = nodes.filter(n => n.id !== id);
             saveToStorage();
             renderNodes();
@@ -573,7 +649,6 @@
 
         window.hideNotifOverlay = () => document.getElementById('overlay').classList.add('hidden');
 
-        // Logout Functions
         window.triggerLogout = () => document.getElementById('logout-confirm-modal').classList.remove('hidden');
         window.closeLogoutModal = () => document.getElementById('logout-confirm-modal').classList.add('hidden');
         window.confirmLogout = () => {
@@ -603,7 +678,6 @@
             }, 1000);
         };
 
-        // Mesh Background
         function initMesh() {
             const canvas = document.getElementById('mesh-canvas');
             const ctx = canvas.getContext('2d');
