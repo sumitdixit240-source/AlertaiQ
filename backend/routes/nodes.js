@@ -25,24 +25,24 @@ router.post("/", auth, async (req, res) => {
   try {
     const { cat, sub, freq, amt, expiry } = req.body;
 
-    // ✅ BASIC VALIDATION
+    // ✅ VALIDATION
     if (!cat || !sub) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({ error: "Category and Subcategory required" });
     }
 
-    // ✅ CHECK USER EXISTS
+    // ✅ CHECK USER
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // ✅ FREE PLAN LIMIT
+    // ✅ FREE PLAN LIMIT (2 NODES MAX)
     const count = await Node.countDocuments({ userId: req.user.id });
     if (!user.isPro && count >= 2) {
       return res.status(403).json({ error: "Free limit reached (Max 2 nodes)" });
     }
 
-    // ✅ CREATE NODE (WITH USER ISOLATION)
+    // ✅ CREATE NODE
     const node = await Node.create({
       userId: req.user.id,
       cat,

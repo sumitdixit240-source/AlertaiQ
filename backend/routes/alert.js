@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
 
+const Alert = require("../models/Alert");
 const OTP = require("../models/OTP");
-const Alert = require("../models/Alert"); // ✅ REQUIRED
 const sendMail = require("../services/mailer");
-const auth = require("../middleware/auth"); // ✅ REQUIRED
+const auth = require("../middleware/auth");
 
 
 // ================= TEST ROUTE =================
@@ -18,21 +18,22 @@ router.get("/", auth, (req, res) => {
 
 
 // ================= CREATE ALERT =================
-router.post("/create", auth, async (req, res) => {
+// supports: /create AND /add
+router.post(["/create", "/add"], auth, async (req, res) => {
   try {
-    const { title, message } = req.body;
+    const { title, message, description } = req.body;
 
-    if (!title || !message) {
+    if (!title && !message && !description) {
       return res.status(400).json({
         success: false,
-        message: "Title and message required"
+        message: "Title or message required"
       });
     }
 
     const alert = await Alert.create({
-      title,
-      message,
-      userId: req.user.id   // 🔐 USER ISOLATION
+      userId: req.user.id, // 🔐 IMPORTANT: USER ISOLATION
+      title: title || "No Title",
+      message: message || description || ""
     });
 
     res.json({
@@ -41,18 +42,22 @@ router.post("/create", auth, async (req, res) => {
       data: alert
     });
 
-  } catch (error) {
-    console.error("CREATE ALERT ERROR:", error.message);
-    res.status(500).json({ success: false });
+  } catch (err) {
+    console.error("CREATE ALERT ERROR:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
   }
 });
 
 
 // ================= GET USER ALERTS =================
-router.get("/my", auth, async (req, res) => {
+// supports: /my AND /all (multi-device sync)
+router.get(["/my", "/all"], auth, async (req, res) => {
   try {
     const alerts = await Alert.find({
-      userId: req.user.id   // 🔐 FILTER
+      userId: req.user.id
     }).sort({ createdAt: -1 });
 
     res.json({
@@ -60,9 +65,12 @@ router.get("/my", auth, async (req, res) => {
       data: alerts
     });
 
-  } catch (error) {
-    console.error("GET ALERTS ERROR:", error.message);
-    res.status(500).json({ success: false });
+  } catch (err) {
+    console.error("GET ALERTS ERROR:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
   }
 });
 
@@ -70,27 +78,29 @@ router.get("/my", auth, async (req, res) => {
 // ================= SEND OTP =================
 router.post("/send-otp", auth, async (req, res) => {
   try {
-    const email = req.user.email; // 🔐 DO NOT TRUST BODY
+    const email = req.user.email; // from JWT only (secure)
 
     const otp = Math.floor(100000 + Math.random() * 900000);
 
     await OTP.create({
       email,
       otp,
-      userId: req.user.id   // 🔐 LINK TO USER
+      userId: req.user.id
     });
 
-    await sendMail(
-      email,
-      "Your OTP",
-      `<h1>Your OTP is ${otp}</h1>`
-    );
+    await sendMail(email, "Your OTP", `<h1>Your OTP is ${otp}</h1>`);
 
-    res.json({ success: true, message: "OTP sent" });
+    res.json({
+      success: true,
+      message: "OTP sent"
+    });
 
-  } catch (error) {
-    console.error("SEND OTP ERROR:", error.message);
-    res.status(500).json({ success: false });
+  } catch (err) {
+    console.error("SEND OTP ERROR:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
   }
 });
 
@@ -102,7 +112,7 @@ router.post("/verify-otp", auth, async (req, res) => {
 
     const record = await OTP.findOne({
       otp,
-      userId: req.user.id   // 🔐 STRICT MATCH
+      userId: req.user.id
     });
 
     if (!record) {
@@ -113,7 +123,7 @@ router.post("/verify-otp", auth, async (req, res) => {
     }
 
     await OTP.deleteMany({
-      userId: req.user.id   // 🔐 CLEAN ONLY USER DATA
+      userId: req.user.id
     });
 
     res.json({
@@ -121,9 +131,12 @@ router.post("/verify-otp", auth, async (req, res) => {
       message: "OTP verified"
     });
 
-  } catch (error) {
-    console.error("VERIFY OTP ERROR:", error.message);
-    res.status(500).json({ success: false });
+  } catch (err) {
+    console.error("VERIFY OTP ERROR:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
   }
 });
 
