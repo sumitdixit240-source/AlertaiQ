@@ -1,134 +1,109 @@
-const express = require("express");
-const http = require("http");
-const socketIo = require("socket.io");
-const dotenv = require("dotenv");
-const cors = require("cors");
-const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
+const cron = require("node-cron");
+const Alert = require("../models/Alert");
+const sendMail = require("./mailer");
 
-const connectDB = require("./config/db");
-
-const authRoutes = require("./routes/auth");
-const nodeRoutes = require("./routes/nodes");
-const alertRoutes = require("./routes/alert");
-
-dotenv.config();
-
-// ================= APP + SERVER =================
-const app = express();
-const server = http.createServer(app);
-
-// ================= ALLOWED ORIGINS =================
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://127.0.0.1:5500",
-  "https://alertai-q.vercel.app"
-];
-
-// ================= SOCKET.IO =================
-const io = socketIo(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE"]
+// ================= INTERVAL MAPPING =================
+const getIntervalMs = (freq) => {
+  switch (freq) {
+    case "daily":
+      return 24 * 60 * 60 * 1000;
+    case "weekly":
+      return 7 * 24 * 60 * 60 * 1000;
+    case "monthly":
+      return 30 * 24 * 60 * 60 * 1000;
+    case "one-time":
+      return null;
+    default:
+      return null;
   }
-});
+};
 
-app.set("io", io);
+// ================= CRON JOB =================
+// Runs every minute
+cron.schedule("* * * * *", async () => {
+  console.log("⏱ Cron running...");
 
-// ================= SOCKET EVENTS =================
-io.on("connection", (socket) => {
-  console.log(`⚡ User connected: ${socket.id}`);
+  const now = Date.now();
 
-  socket.on("nodeUpdated", (data) => {
-    io.emit("refreshNodes", data);
-  });
-
-  socket.on("newAlert", (data) => {
-    io.emit("refreshAlerts", data);
-  });
-
-  socket.on("disconnect", () => {
-    console.log(`❌ User disconnected: ${socket.id}`);
-  });
-});
-
-// ================= SECURITY =================
-app.use(helmet());
-
-// ================= CORS (FINAL FIX) =================
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      console.log("❌ CORS Blocked:", origin);
-      return callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
-  })
-);
-
-// ================= RATE LIMIT =================
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100
-  })
-);
-
-// ================= BODY PARSER =================
-app.use(express.json());
-
-// ================= REQUEST LOG =================
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
-  next();
-});
-
-// ================= ROUTES =================
-app.use("/api/auth", authRoutes);
-app.use("/api/nodes", nodeRoutes);
-app.use("/api/alerts", alertRoutes);
-
-// ================= HEALTH CHECK =================
-app.get("/", (req, res) => {
-  res.json({ status: "🚀 AlertAIQ Server Running" });
-});
-
-// ================= 404 HANDLER =================
-app.use((req, res) => {
-  res.status(404).json({ message: "Route not found" });
-});
-
-// ================= ERROR HANDLER =================
-app.use((err, req, res, next) => {
-  console.error("❌ Server Error:", err.message);
-  res.status(500).json({
-    message: err.message || "Internal Server Error"
-  });
-});
-
-// ================= DATABASE + SERVER START =================
-async function startServer() {
   try {
-    await connectDB();
+    const alerts = await Alert.find({});
 
-    const PORT = process.env.PORT || 5000;
+    for (const alert of alerts) {
+      try {
+        if (!alert.expiryDate) continue;
 
-    server.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log("⚡ Socket.IO enabled");
-    });
+        const expiryTime = new Date(alert.expiryDate).getTime();
+        if (Number.isNaN(expiryTime)) continue;
+
+        const diff = expiryTime - now;
+
+        // ❌ already expired
+        if (diff <= 0) continue;
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+
+        // ================= ONE-TIME ALERT =================
+        if (alert.frequency === "one-time") {
+          const threshold = 3 * 24 * 60 * 60 * 1000;
+
+          if (diff <= threshold && !alert.reminderSent) {
+            await sendMail(
+              alert.email,
+              "⚠️ Renewal Reminder",
+              `
+                <h2>${alert.title} Expiring Soon</h2>
+                <p><b>Category:</b> ${alert.category}</p>
+                <p><b>Amount:</b> ₹${alert.amount}</p>
+                <p><b>Expiry:</b> ${new Date(expiryTime).toLocaleString()}</p>
+                <h3>⏳ Time Left: ${days}d ${hours}h</h3>
+              `
+            );
+
+            alert.reminderSent = true;
+            alert.lastSent = new Date();
+            await alert.save();
+
+            console.log(`📩 One-time reminder sent → ${alert.email}`);
+          }
+
+          continue;
+        }
+
+        // ================= RECURRING ALERT =================
+        const interval = getIntervalMs(alert.frequency);
+        if (!interval) continue;
+
+        const lastSentTime = alert.lastSent
+          ? new Date(alert.lastSent).getTime()
+          : 0;
+
+        if (now - lastSentTime >= interval) {
+          await sendMail(
+            alert.email,
+            "⏳ Renewal Alert",
+            `
+              <h2>${alert.title}</h2>
+              <p><b>Category:</b> ${alert.category}</p>
+              <p><b>Amount:</b> ₹${alert.amount}</p>
+              <p><b>Frequency:</b> ${alert.frequency}</p>
+              <p><b>Expiry:</b> ${new Date(expiryTime).toLocaleString()}</p>
+              <h3>⏰ Time Left: ${days}d ${hours}h</h3>
+            `
+          );
+
+          alert.lastSent = new Date();
+          await alert.save();
+
+          console.log(`📩 Recurring alert sent → ${alert.email}`);
+        }
+
+      } catch (err) {
+        console.error("⚠️ Alert processing error:", err.message);
+      }
+    }
+
   } catch (err) {
-    console.error("❌ DB ERROR:", err.message);
-    process.exit(1);
+    console.error("❌ Cron error:", err.message);
   }
-}
-
-startServer();
+});
