@@ -4,7 +4,7 @@ module.exports = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    // ================= TOKEN CHECK =================
+    // ================= HEADER CHECK =================
     if (!authHeader || typeof authHeader !== "string") {
       return res.status(401).json({
         msg: "Authorization header missing"
@@ -17,6 +17,7 @@ module.exports = (req, res, next) => {
       });
     }
 
+    // ================= TOKEN EXTRACT =================
     const token = authHeader.split(" ")[1];
 
     if (!token) {
@@ -28,29 +29,21 @@ module.exports = (req, res, next) => {
     // ================= VERIFY TOKEN =================
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (!decoded) {
-      return res.status(401).json({
-        msg: "Invalid token"
-      });
-    }
-
-    // ================= SAFE USER EXTRACTION =================
-    const userId = decoded.id || decoded._id;
+    // 🔥 CRITICAL: Must match your auth.js token payload
+    const userId = decoded.id;
 
     if (!userId) {
       return res.status(401).json({
-        msg: "Token payload missing user id"
+        msg: "Invalid token payload"
       });
     }
 
     // ================= ATTACH USER =================
     req.user = {
-      id: userId,
-      email: decoded.email || null
+      id: userId
     };
 
-    // store token for audit/logging if needed
-    req.token = token;
+    req.token = token; // optional (logging/debugging)
 
     next();
 
@@ -63,14 +56,15 @@ module.exports = (req, res, next) => {
       });
     }
 
-    // ================= JWT ERROR =================
+    // ================= INVALID TOKEN =================
     if (err.name === "JsonWebTokenError") {
       return res.status(401).json({
-        msg: "Invalid token signature"
+        msg: "Invalid token"
       });
     }
 
-    // ================= FALLBACK ERROR =================
+    console.error("AUTH ERROR:", err.message);
+
     return res.status(500).json({
       msg: "Authentication failed"
     });
