@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
   {
+    // ================= BASIC INFO =================
     name: {
       type: String,
       required: true,
@@ -25,10 +26,16 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       minlength: 6,
-      select: false // 🔥 prevents password leak
+      select: false
     },
 
+    // ================= ACCOUNT STATUS =================
     isVerified: {
+      type: Boolean,
+      default: false
+    },
+
+    isPro: {
       type: Boolean,
       default: false
     },
@@ -39,6 +46,13 @@ const userSchema = new mongoose.Schema(
       default: "user"
     },
 
+    // ================= SECURITY =================
+    tokenVersion: {
+      type: Number,
+      default: 0
+    },
+
+    // ================= TRACKING =================
     lastLogin: {
       type: Date,
       default: null
@@ -48,35 +62,38 @@ const userSchema = new mongoose.Schema(
 );
 
 
-
-// ================= PASSWORD HASH (FIXED & SAFE) =================
-userSchema.pre("save", async function () {
+// ================= PASSWORD HASH =================
+userSchema.pre("save", async function (next) {
   try {
-    // 🔥 Only hash if password is modified
-    if (!this.isModified("password")) return;
-
-    // 🔥 Prevent double hashing
-    if (this.password.startsWith("$2a$") || this.password.startsWith("$2b$")) {
-      return;
-    }
+    if (!this.isModified("password")) return next();
 
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
 
+    next();
   } catch (err) {
-    console.error("Password hashing error:", err);
-    throw err;
+    next(err);
   }
 });
 
 
-
-// ================= PASSWORD COMPARE =================
+// ================= PASSWORD CHECK =================
 userSchema.methods.comparePassword = async function (enteredPassword) {
   if (!this.password) return false;
   return bcrypt.compare(enteredPassword, this.password);
 };
 
 
+// ================= SECURITY HELPERS =================
+
+// 🔥 Force logout all devices
+userSchema.methods.incrementTokenVersion = async function () {
+  this.tokenVersion += 1;
+  await this.save();
+};
+
+
+// ================= INDEXING (IMPORTANT FOR SCALE) =================
+userSchema.index({ email: 1 }, { unique: true });
 
 module.exports = mongoose.model("User", userSchema);
