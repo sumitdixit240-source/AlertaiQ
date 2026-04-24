@@ -1,124 +1,90 @@
-const express = require("express");
-const http = require("http");
-const socketIo = require("socket.io");
-const dotenv = require("dotenv");
-const cors = require("cors");
-const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
-const connectDB = require("./config/db"); // ✅ REQUIRED
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 50,
+      default: "User"
+    },
 
-const authRoutes = require("./routes/auth");
-const nodeRoutes = require("./routes/nodes");
-const alertRoutes = require("./routes/alert");
+    email: {
+      type: String,
+      required: true,
+      unique: true, // single index source
+      lowercase: true,
+      trim: true,
+      match: [/^\S+@\S+\.\S+$/, "Invalid email format"]
+    },
 
-dotenv.config();
+    password: {
+      type: String,
+      required: true,
+      minlength: 6,
+      select: false
+    },
 
-const app = express();
+    isVerified: {
+      type: Boolean,
+      default: false
+    },
 
+    isPro: {
+      type: Boolean,
+      default: false
+    },
 
-// ================= HTTP SERVER =================
-const server = http.createServer(app);
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user"
+    },
 
+    tokenVersion: {
+      type: Number,
+      default: 0
+    },
 
-// ================= SOCKET.IO =================
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"]
-  }
-});
-
-// Optional access in routes
-app.set("io", io);
-
-io.on("connection", (socket) => {
-  console.log("⚡ User connected:", socket.id);
-
-  socket.on("nodeUpdated", (data) => {
-    io.emit("refreshNodes", data);
-  });
-
-  socket.on("newAlert", (data) => {
-    io.emit("refreshAlerts", data);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("❌ User disconnected:", socket.id);
-  });
-});
-
-
-// ================= SECURITY =================
-app.use(helmet());
-
-
-// ================= CORS =================
-const allowedOrigins = [
-  "http://localhost:5000",
-  "https://alertai-q.vercel.app"
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
+    lastLogin: {
+      type: Date,
+      default: null
     }
-
-    console.log("❌ Blocked CORS:", origin);
-    return callback(null, true); // keep open for now
   },
-  credentials: true
-}));
+  { timestamps: true }
+);
 
 
-// ================= RATE LIMIT =================
-app.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
-}));
-
-
-// ================= BODY =================
-app.use(express.json());
-
-
-// ================= ROUTES =================
-app.use("/api/auth", authRoutes);
-app.use("/api/nodes", nodeRoutes);
-app.use("/api/alert", alertRoutes);
-
-
-// ================= HEALTH =================
-app.get("/", (req, res) => {
-  res.json({ status: "Server Running ✅" });
-});
-
-
-// ================= 404 =================
-app.use((req, res) => {
-  res.status(404).json({ message: "Route not found" });
-});
-
-
-// ================= START SERVER =================
-async function startServer() {
+// ================= HASH PASSWORD =================
+userSchema.pre("save", async function (next) {
   try {
-    await connectDB(); // ✅ now works
+    if (!this.isModified("password")) return next();
 
-    const PORT = process.env.PORT || 5000;
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
 
-    server.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log("⚡ Socket.IO enabled");
-    });
-
+    next();
   } catch (err) {
-    console.error("❌ DB ERROR:", err.message);
-    process.exit(1);
+    next(err);
   }
-}
+});
 
-startServer();
+
+// ================= COMPARE PASSWORD =================
+userSchema.methods.comparePassword = async function (enteredPassword) {
+  if (!this.password) return false;
+  return bcrypt.compare(enteredPassword, this.password);
+};
+
+
+// ================= FORCE LOGOUT =================
+userSchema.methods.incrementTokenVersion = async function () {
+  this.tokenVersion += 1;
+  await this.save();
+};
+
+
+module.exports = mongoose.model("User", userSchema);
