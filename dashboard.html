@@ -243,14 +243,10 @@
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-2">Alert Frequency</label>
                             <select id="form-freq" required class="w-full">
-                                <option value="1h">Every 1 Hour</option>
-                                <option value="6h">Every 6 Hours</option>
-                                <option value="12h">Every 12 Hours</option>
-                                <option value="24h">Every 24 Hours</option>
-                                <option value="Week">Weekly</option>
-                                <option value="Month">Monthly</option>
-                                <option value="Year">Annually</option>
-                                <option value="Once (3d Before)">3 Days before expiry</option>
+                                <option value="Once">Once</option>
+                                <option value="Daily" selected>Daily</option>
+                                <option value="Weekly">Weekly</option>
+                                <option value="Monthly">Monthly</option>
                             </select>
                         </div>
                         <div>
@@ -274,28 +270,23 @@
         // Frequency mapping from frontend to backend
         function mapFrequencyToBackend(frontendFreq) {
             const frequencyMap = {
-                "1h": "daily",
-                "6h": "daily",
-                "12h": "daily",
-                "24h": "daily",
-                "Week": "weekly",
-                "Month": "monthly",
-                "Year": "yearly",
-                "Once (3d Before)": "one-time"
+                "Once": "one-time",
+                "Daily": "daily",
+                "Weekly": "weekly",
+                "Monthly": "monthly"
             };
-            return frequencyMap[frontendFreq] || "monthly";
+            return frequencyMap[frontendFreq] || "daily";
         }
 
         // Frequency mapping from backend to frontend
         function mapFrequencyToFrontend(backendFreq) {
             const frequencyMap = {
-                "daily": "24h",
-                "weekly": "Week",
-                "monthly": "Month",
-                "yearly": "Year",
-                "one-time": "Once (3d Before)"
+                "one-time": "Once",
+                "daily": "Daily",
+                "weekly": "Weekly",
+                "monthly": "Monthly"
             };
-            return frequencyMap[backendFreq] || "24h";
+            return frequencyMap[backendFreq] || "Daily";
         }
 
         const SECTORS = [
@@ -333,15 +324,11 @@
 
         function getUserIdFromToken() {
             const token = localStorage.getItem("token");
-            if (!token) {
-                console.warn("No token found");
-                return null;
-            }
+            if (!token) return null;
             try {
                 const decoded = JSON.parse(atob(token.split('.')[1]));
                 return decoded.id || decoded._id || null;
             } catch (err) {
-                console.error("Token decode error:", err);
                 return null;
             }
         }
@@ -357,11 +344,8 @@
                 document.getElementById('main-ui').classList.remove('opacity-0');
             } catch (err) {
                 console.error("Initialization error:", err);
-                alert("Error loading dashboard. Please refresh the page.");
             }
         };
-
-        // --- Backend Sync Logic ---
 
         window.loadNodes = async function() {
             const token = localStorage.getItem("token");
@@ -376,29 +360,23 @@
 
                 if (res.ok) {
                     const apiData = await res.json();
-
-                    const mappedNodes = apiData.map(node => ({
+                    nodes = apiData.map(node => ({
                         id: node._id,
                         cat: node.category || "SaaS Subscriptions",
                         sub: node.title,
-                        freq: mapFrequencyToFrontend(node.frequency) || "24h",
+                        freq: mapFrequencyToFrontend(node.frequency),
                         amt: parseFloat(node.amount) || 0,
                         expiry: node.expiryDate || new Date().toISOString(),
-                        aiSuggestion: "Review before expiry date."
+                        aiSuggestion: "Optimized monitoring active."
                     }));
-
-                    nodes = mappedNodes;
                     saveToStorage();
                     renderNodes();
                     updateBurn();
                     setSyncStatus('synced');
                 } else {
-                    const error = await res.json();
-                    console.error("Fetch error:", error);
                     setSyncStatus('error');
                 }
             } catch (err) {
-                console.error("Cloud Sync Error:", err);
                 setSyncStatus('error');
             }
         };
@@ -406,7 +384,6 @@
         async function pushNodeToCloud(nodeData) {
             const token = localStorage.getItem("token");
             if (!token) return null;
-
             setSyncStatus('syncing');
             try {
                 const res = await fetch("/api/nodes", {
@@ -423,88 +400,47 @@
                         expiryDate: nodeData.expiry
                     })
                 });
-
                 if (res.ok) {
                     const saved = await res.json();
                     setSyncStatus('synced');
                     return saved._id || saved.id;
-                } else {
-                    const error = await res.json();
-                    console.error("Push error:", error);
-                    setSyncStatus('error');
                 }
-            } catch (err) {
-                console.error("Push error:", err);
-                setSyncStatus('error');
-            }
+            } catch (err) { console.error(err); }
+            setSyncStatus('error');
             return null;
         }
 
         async function deleteNodeFromCloud(nodeId) {
             const token = localStorage.getItem("token");
             if (!token) return false;
-
             setSyncStatus('syncing');
             try {
                 const res = await fetch(`/api/nodes/${nodeId}`, {
                     method: "DELETE",
                     headers: { "Authorization": `Bearer ${token}` }
                 });
-
                 if (res.ok) {
                     setSyncStatus('synced');
                     return true;
-                } else {
-                    const error = await res.json();
-                    console.error("Delete error:", error);
-                    setSyncStatus('error');
-                    return false;
                 }
-            } catch (err) {
-                console.error("Delete error:", err);
-                setSyncStatus('error');
-                return false;
-            }
+            } catch (err) { console.error(err); }
+            setSyncStatus('error');
+            return false;
         }
-
-        // --- UI Interactions ---
 
         function loadFromStorage() {
             const userId = getUserIdFromToken();
-            if (!userId) {
-                console.warn("User ID not found, redirecting to login");
-                // Don't redirect immediately, let the backend handle auth
-                return;
-            }
-
-            try {
-                const saved = localStorage.getItem(`renew_ai_nodes_${userId}`);
-                const proState = localStorage.getItem(`renew_ai_pro_${userId}`);
-                
-                nodes = saved ? JSON.parse(saved) : [];
-                isProUser = proState === 'true';
-                
-                if (isProUser) {
-                    document.getElementById('subscription-badge').classList.remove('hidden');
-                }
-            } catch (err) {
-                console.error("Storage load error:", err);
-                nodes = [];
-                isProUser = false;
-            }
+            if (!userId) return;
+            const saved = localStorage.getItem(`renew_ai_nodes_${userId}`);
+            const proState = localStorage.getItem(`renew_ai_pro_${userId}`);
+            nodes = saved ? JSON.parse(saved) : [];
+            isProUser = proState === 'true';
+            if (isProUser) document.getElementById('subscription-badge').classList.remove('hidden');
         }
 
         function saveToStorage() {
             const userId = getUserIdFromToken();
-            if (!userId) {
-                console.warn("Cannot save: User ID not found");
-                return;
-            }
-            try {
-                localStorage.setItem(`renew_ai_nodes_${userId}`, JSON.stringify(nodes));
-            } catch (err) {
-                console.error("Storage save error:", err);
-            }
+            if (userId) localStorage.setItem(`renew_ai_nodes_${userId}`, JSON.stringify(nodes));
         }
 
         function renderCategories() {
@@ -522,13 +458,7 @@
                 document.getElementById('paywall-modal').classList.remove('hidden');
                 return;
             }
-
             const sector = SECTORS.find(s => s.name === cat);
-            if (!sector) {
-                console.error("Sector not found:", cat);
-                return;
-            }
-            
             document.getElementById('modal-cat').innerText = cat;
             document.getElementById('form-cat-val').value = cat;
             const sub = document.getElementById('form-sub');
@@ -542,89 +472,49 @@
         window.upgradeAccount = () => {
             const userId = getUserIdFromToken();
             document.getElementById('overlay').classList.remove('hidden');
-            document.getElementById('loader-box').innerHTML = `
-                <div class="flex flex-col items-center py-8">
-                    <div class="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4"></div>
-                    <h4 class="text-white font-bold">Authorizing License...</h4>
-                </div>
-            `;
-            
+            document.getElementById('loader-box').innerHTML = `<div class="flex flex-col items-center py-8"><div class="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4"></div><h4 class="text-white font-bold">Activating License...</h4></div>`;
             setTimeout(() => {
                 isProUser = true;
                 localStorage.setItem(`renew_ai_pro_${userId}`, 'true');
                 window.location.reload(); 
-            }, 2000);
+            }, 1500);
         };
 
         document.getElementById('node-form').onsubmit = async (e) => {
             e.preventDefault();
-            
-            const catVal = document.getElementById('form-cat-val').value;
-            const subVal = document.getElementById('form-sub').value;
-            const freqVal = document.getElementById('form-freq').value;
-            const amtVal = document.getElementById('form-amt').value;
-            const expiryVal = document.getElementById('form-expiry').value;
-
-            // Validation
-            if (!catVal || !subVal || !freqVal || !amtVal || !expiryVal) {
-                alert("All fields are required!");
-                return;
-            }
-
-            if (parseFloat(amtVal) <= 0) {
-                alert("Amount must be greater than 0!");
-                return;
-            }
-
             const newNode = {
-                cat: catVal,
-                sub: subVal,
-                freq: freqVal,
-                amt: parseFloat(amtVal),
-                expiry: expiryVal
+                cat: document.getElementById('form-cat-val').value,
+                sub: document.getElementById('form-sub').value,
+                freq: document.getElementById('form-freq').value,
+                amt: parseFloat(document.getElementById('form-amt').value),
+                expiry: document.getElementById('form-expiry').value,
+                aiSuggestion: "Monitor set for " + document.getElementById('form-freq').value + " pings."
             };
 
             closeModal();
             showNotifOverlay();
             
-            // Get AI suggestion (optional)
-            newNode.aiSuggestion = await getAISuggestion(newNode);
-            
-            // Sync with backend before updating UI
             const cloudId = await pushNodeToCloud(newNode);
             if (cloudId) {
                 newNode.id = cloudId;
                 nodes.unshift(newNode);
                 saveToStorage();
                 newlyAddedId = newNode.id;
-
-                setTimeout(() => {
-                    renderNodes();
-                    updateBurn();
-                }, 1000);
+                setTimeout(() => { renderNodes(); updateBurn(); }, 1000);
             } else {
-                console.error("Failed to create node on server");
                 hideNotifOverlay();
-                alert("Error creating node. Please try again.");
+                alert("Error connecting to cloud node.");
             }
         };
-
-        async function getAISuggestion(node) {
-            // Return a default suggestion
-            // Note: To enable Gemini AI, add your API key in the environment variables
-            return "Set a reminder 3 days before expiry.";
-        }
 
         function renderNodes() {
             Object.values(activeIntervals).forEach(clearInterval);
             activeIntervals = {};
-
             const grid = document.getElementById('nodes-grid');
             if (nodes.length === 0) {
                 grid.innerHTML = `<div class="col-span-full py-12 text-center opacity-30 font-bold border-2 border-dashed border-white/5 rounded-3xl">GRID READY FOR DEPLOYMENT</div>`;
                 return;
             }
-
             grid.innerHTML = nodes.map(node => `
                 <div class="glass-card p-6 rounded-3xl flex flex-col gap-5 border-white/5 ${node.id === newlyAddedId ? 'new-node' : ''}">
                     <div class="flex justify-between items-start">
@@ -639,17 +529,14 @@
                         </div>
                         <button onclick="delNode('${node.id}')" class="text-slate-600 hover:text-rose-500 transition-colors"><i class="fas fa-trash-alt"></i></button>
                     </div>
-
                     <div class="flex items-baseline gap-2">
                         <span class="text-3xl font-black text-white">₹${node.amt.toLocaleString()}</span>
-                        <span class="text-[9px] text-emerald-400 font-bold uppercase">${node.freq} Alert</span>
+                        <span class="text-[9px] text-emerald-400 font-bold uppercase">${node.freq} Pings</span>
                     </div>
-
                     <div class="bg-indigo-500/5 p-3 rounded-xl border border-indigo-500/10">
                          <p class="text-[10px] text-indigo-400 font-bold uppercase mb-1">AI INSIGHT</p>
-                         <p class="text-xs text-slate-300 italic">"${node.aiSuggestion || 'Analyzing market...'}"</p>
+                         <p class="text-xs text-slate-300 italic">"${node.aiSuggestion || 'Active'}"</p>
                     </div>
-
                     <div class="timer-grid" id="timer-${node.id}">
                         <div class="timer-segment"><span class="timer-val" data-unit="days">00</span><span class="timer-unit">DAYS</span></div>
                         <div class="timer-segment"><span class="timer-val" data-unit="hours">00</span><span class="timer-unit">HRS</span></div>
@@ -658,7 +545,6 @@
                     </div>
                 </div>
             `).join('');
-
             nodes.forEach(n => startTimer(n.id, n.expiry));
             newlyAddedId = null;
         }
@@ -666,55 +552,32 @@
         function startTimer(id, target) {
             const el = document.getElementById(`timer-${id}`);
             if (!el) return;
-
             const update = () => {
-                const now = new Date().getTime();
-                const end = new Date(target).getTime();
-                const diff = end - now;
-
+                const diff = new Date(target).getTime() - new Date().getTime();
                 if (diff <= 0) {
                     el.innerHTML = `<div class="col-span-full py-2 bg-rose-500/10 text-rose-500 rounded-lg text-center text-xs font-bold uppercase tracking-widest border border-rose-500/20">EXPIRED</div>`;
                     return;
                 }
-
-                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-                const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                const s = Math.floor((diff % (1000 * 60)) / 1000);
-
-                const segs = {
-                    days: el.querySelector('[data-unit="days"]'),
-                    hours: el.querySelector('[data-unit="hours"]'),
-                    minutes: el.querySelector('[data-unit="minutes"]'),
-                    seconds: el.querySelector('[data-unit="seconds"]')
-                };
-
-                if (segs.days) segs.days.innerText = String(d).padStart(2, '0');
-                if (segs.hours) segs.hours.innerText = String(h).padStart(2, '0');
-                if (segs.minutes) segs.minutes.innerText = String(m).padStart(2, '0');
-                if (segs.seconds) segs.seconds.innerText = String(s).padStart(2, '0');
+                const d = Math.floor(diff / 86400000);
+                const h = Math.floor((diff % 86400000) / 3600000);
+                const m = Math.floor((diff % 3600000) / 60000);
+                const s = Math.floor((diff % 60000) / 1000);
+                el.querySelector('[data-unit="days"]').innerText = String(d).padStart(2, '0');
+                el.querySelector('[data-unit="hours"]').innerText = String(h).padStart(2, '0');
+                el.querySelector('[data-unit="minutes"]').innerText = String(m).padStart(2, '0');
+                el.querySelector('[data-unit="seconds"]').innerText = String(s).padStart(2, '0');
             };
-
             update();
             activeIntervals[id] = setInterval(update, 1000);
         }
 
         window.delNode = async (id) => {
-            if (!confirm("Are you sure you want to delete this node?")) {
-                return;
-            }
-
-            // Delete from backend first
-            const success = await deleteNodeFromCloud(id);
-            
-            if (success) {
-                // Update local state
+            if (!confirm("Terminate this monitoring node?")) return;
+            if (await deleteNodeFromCloud(id)) {
                 nodes = nodes.filter(n => n.id !== id);
                 saveToStorage();
                 renderNodes();
                 updateBurn();
-            } else {
-                alert("Failed to delete node. Please try again.");
             }
         };
 
@@ -729,46 +592,30 @@
             const loader = document.getElementById('loader-box');
             const success = document.getElementById('success-box');
             const upgrade = document.getElementById('post-limit-upgrade');
-
             loader.classList.remove('hidden');
             success.classList.add('hidden');
             upgrade.classList.add('hidden');
-
             setTimeout(() => {
                 loader.classList.add('hidden');
-                if (nodes.length >= 2 && !isProUser) {
-                    upgrade.classList.remove('hidden');
-                } else {
-                    success.classList.remove('hidden');
-                }
+                if (nodes.length >= 2 && !isProUser) upgrade.classList.remove('hidden');
+                else success.classList.remove('hidden');
             }, 1800);
         }
 
         window.hideNotifOverlay = () => document.getElementById('overlay').classList.add('hidden');
-
         window.triggerLogout = () => document.getElementById('logout-confirm-modal').classList.remove('hidden');
         window.closeLogoutModal = () => document.getElementById('logout-confirm-modal').classList.add('hidden');
         window.confirmLogout = () => {
             closeLogoutModal();
             const overlay = document.createElement('div');
             overlay.className = 'logout-screen';
-            overlay.innerHTML = `
-                <div class="flex flex-col items-center">
-                    <div class="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-6"></div>
-                    <h1 class="text-white font-black text-2xl mb-2">Come back soon!</h1>
-                    <p class="text-slate-400">Disconnecting and redirecting to login in <span id="logout-timer" class="text-indigo-400 font-bold">3</span>s...</p>
-                </div>
-            `;
+            overlay.innerHTML = `<div class="flex flex-col items-center"><div class="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-6"></div><h1 class="text-white font-black text-2xl mb-2">Shutting Down...</h1><p class="text-slate-400">Redirecting in <span id="logout-timer" class="text-indigo-400 font-bold">3</span>s...</p></div>`;
             document.body.appendChild(overlay);
-            
             let timeLeft = 3;
-            const timerEl = document.getElementById('logout-timer');
-            
-            const interval = setInterval(() => {
+            setInterval(() => {
                 timeLeft -= 1;
-                timerEl.innerText = timeLeft;
+                document.getElementById('logout-timer').innerText = timeLeft;
                 if (timeLeft <= 0) {
-                    clearInterval(interval);
                     localStorage.removeItem("token");
                     window.location.href = 'login.html'; 
                 }
@@ -779,30 +626,13 @@
             const canvas = document.getElementById('mesh-canvas');
             const ctx = canvas.getContext('2d');
             let w, h, particles = [];
-
-            const resize = () => {
-                w = canvas.width = window.innerWidth;
-                h = canvas.height = window.innerHeight;
-            };
-
+            const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
             class Particle {
-                constructor() {
-                    this.x = Math.random() * w;
-                    this.y = Math.random() * h;
-                    this.vx = (Math.random() - 0.5) * 0.5;
-                    this.vy = (Math.random() - 0.5) * 0.5;
-                }
-                update() {
-                    this.x += this.vx;
-                    this.y += this.vy;
-                    if(this.x < 0 || this.x > w) this.vx *= -1;
-                    if(this.y < 0 || this.y > h) this.vy *= -1;
-                }
+                constructor() { this.x = Math.random() * w; this.y = Math.random() * h; this.vx = (Math.random() - 0.5) * 0.5; this.vy = (Math.random() - 0.5) * 0.5; }
+                update() { this.x += this.vx; this.y += this.vy; if(this.x < 0 || this.x > w) this.vx *= -1; if(this.y < 0 || this.y > h) this.vy *= -1; }
             }
-
             resize();
             for(let i=0; i<40; i++) particles.push(new Particle());
-
             function draw() {
                 ctx.clearRect(0,0,w,h);
                 ctx.strokeStyle = 'rgba(99, 102, 241, 0.15)';
@@ -812,12 +642,7 @@
                     for(let j=i+1; j<particles.length; j++) {
                         const p2 = particles[j];
                         const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
-                        if(dist < 250) {
-                            ctx.beginPath();
-                            ctx.moveTo(p.x, p.y);
-                            ctx.lineTo(p2.x, p2.y);
-                            ctx.stroke();
-                        }
+                        if(dist < 250) { ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); }
                     }
                 });
                 requestAnimationFrame(draw);
@@ -826,6 +651,5 @@
             window.addEventListener('resize', resize);
         }
     </script>
-    <script src="./js/nodeService.js"></script>
 </body>
 </html>
