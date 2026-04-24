@@ -13,8 +13,8 @@ router.get("/", auth, async (req, res) => {
       .sort({ createdAt: -1 });
 
     res.json(nodes);
-
   } catch (err) {
+    console.error("GET NODES ERROR:", err.message);
     res.status(500).json({ error: "Failed to fetch nodes" });
   }
 });
@@ -25,20 +25,26 @@ router.post("/", auth, async (req, res) => {
   try {
     const { cat, sub, freq, amt, expiry } = req.body;
 
+    // ✅ BASIC VALIDATION
+    if (!cat || !sub) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // ✅ CHECK USER EXISTS
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // user limit check (FREE PLAN CONTROL)
+    // ✅ FREE PLAN LIMIT
     const count = await Node.countDocuments({ userId: req.user.id });
-
     if (!user.isPro && count >= 2) {
-      return res.status(403).json({ error: "Free limit reached" });
+      return res.status(403).json({ error: "Free limit reached (Max 2 nodes)" });
     }
 
+    // ✅ CREATE NODE (WITH USER ISOLATION)
     const node = await Node.create({
-      userId: req.user.id,   // 🔥 THIS IS THE ISOLATION KEY
+      userId: req.user.id,
       cat,
       sub,
       freq,
@@ -46,11 +52,59 @@ router.post("/", auth, async (req, res) => {
       expiry
     });
 
+    res.status(201).json(node);
+
+  } catch (err) {
+    console.error("CREATE NODE ERROR:", err.message);
+    res.status(500).json({ error: "Failed to create node" });
+  }
+});
+
+
+// ================= UPDATE NODE =================
+router.put("/:id", auth, async (req, res) => {
+  try {
+    const node = await Node.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        userId: req.user.id   // 🔒 USER ISOLATION
+      },
+      req.body,
+      { new: true }
+    );
+
+    if (!node) {
+      return res.status(404).json({ error: "Node not found or unauthorized" });
+    }
+
     res.json(node);
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("UPDATE ERROR:", err.message);
+    res.status(500).json({ error: "Update failed" });
   }
 });
+
+
+// ================= DELETE NODE =================
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    const node = await Node.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id   // 🔒 USER ISOLATION
+    });
+
+    if (!node) {
+      return res.status(404).json({ error: "Node not found or unauthorized" });
+    }
+
+    res.json({ msg: "Deleted successfully" });
+
+  } catch (err) {
+    console.error("DELETE ERROR:", err.message);
+    res.status(500).json({ error: "Delete failed" });
+  }
+});
+
 
 module.exports = router;
