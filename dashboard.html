@@ -271,6 +271,33 @@
     </div>
 
     <script>
+        // Frequency mapping from frontend to backend
+        function mapFrequencyToBackend(frontendFreq) {
+            const frequencyMap = {
+                "1h": "daily",
+                "6h": "daily",
+                "12h": "daily",
+                "24h": "daily",
+                "Week": "weekly",
+                "Month": "monthly",
+                "Year": "yearly",
+                "Once (3d Before)": "one-time"
+            };
+            return frequencyMap[frontendFreq] || "monthly";
+        }
+
+        // Frequency mapping from backend to frontend
+        function mapFrequencyToFrontend(backendFreq) {
+            const frequencyMap = {
+                "daily": "24h",
+                "weekly": "Week",
+                "monthly": "Month",
+                "yearly": "Year",
+                "one-time": "Once (3d Before)"
+            };
+            return frequencyMap[backendFreq] || "24h";
+        }
+
         const SECTORS = [
             { name: "SaaS Subscriptions", icon: "fa-cloud", subs: ["Amazon Prime", "Netflix", "ChatGPT Plus", "Claude Pro", "Adobe CC", "Spotify", "GitHub Pro", "Midjourney", "Figma Pro", "Canva"] },
             { name: "Billing Related", icon: "fa-receipt", subs: ["Phone Bill", "Electricity Bill", "Water Bill", "Gas Connection", "Broadband", "Postpaid Mobile"] },
@@ -306,22 +333,32 @@
 
         function getUserIdFromToken() {
             const token = localStorage.getItem("token");
-            if (!token) return null;
+            if (!token) {
+                console.warn("No token found");
+                return null;
+            }
             try {
-                return JSON.parse(atob(token.split('.')[1])).id;
-            } catch {
+                const decoded = JSON.parse(atob(token.split('.')[1]));
+                return decoded.id || decoded._id || null;
+            } catch (err) {
+                console.error("Token decode error:", err);
                 return null;
             }
         }
 
         window.onload = () => {
-            loadFromStorage();
-            renderCategories();
-            renderNodes();
-            updateBurn();
-            initMesh();
-            loadNodes(); 
-            document.getElementById('main-ui').classList.remove('opacity-0');
+            try {
+                loadFromStorage();
+                renderCategories();
+                renderNodes();
+                updateBurn();
+                initMesh();
+                loadNodes(); 
+                document.getElementById('main-ui').classList.remove('opacity-0');
+            } catch (err) {
+                console.error("Initialization error:", err);
+                alert("Error loading dashboard. Please refresh the page.");
+            }
         };
 
         // --- Backend Sync Logic ---
@@ -339,25 +376,26 @@
 
                 if (res.ok) {
                     const apiData = await res.json();
-                    const userId = getUserIdFromToken();
 
-                    const mappedNodes = apiData
-                        .filter(n => !n.userId || n.userId === userId)
-                        .map(node => ({
-                            id: node.id, // Using raw server ID
-                            cat: node.category || "SaaS Subscriptions",
-                            sub: node.title,
-                            freq: node.frequency || "24h",
-                            amt: parseFloat(node.amount) || 0,
-                            expiry: node.expiryDate || new Date().toISOString(),
-                            aiSuggestion: node.content || "Fetched from cloud sync."
-                        }));
+                    const mappedNodes = apiData.map(node => ({
+                        id: node._id,
+                        cat: node.category || "SaaS Subscriptions",
+                        sub: node.title,
+                        freq: mapFrequencyToFrontend(node.frequency) || "24h",
+                        amt: parseFloat(node.amount) || 0,
+                        expiry: node.expiryDate || new Date().toISOString(),
+                        aiSuggestion: "Review before expiry date."
+                    }));
 
                     nodes = mappedNodes;
                     saveToStorage();
                     renderNodes();
                     updateBurn();
                     setSyncStatus('synced');
+                } else {
+                    const error = await res.json();
+                    console.error("Fetch error:", error);
+                    setSyncStatus('error');
                 }
             } catch (err) {
                 console.error("Cloud Sync Error:", err);
@@ -381,18 +419,22 @@
                         title: nodeData.sub,
                         category: nodeData.cat,
                         amount: nodeData.amt,
-                        frequency: nodeData.freq,
-                        expiryDate: nodeData.expiry,
-                        content: nodeData.aiSuggestion
+                        frequency: mapFrequencyToBackend(nodeData.freq),
+                        expiryDate: nodeData.expiry
                     })
                 });
 
                 if (res.ok) {
                     const saved = await res.json();
                     setSyncStatus('synced');
-                    return saved.id;
+                    return saved._id || saved.id;
+                } else {
+                    const error = await res.json();
+                    console.error("Push error:", error);
+                    setSyncStatus('error');
                 }
             } catch (err) {
+                console.error("Push error:", err);
                 setSyncStatus('error');
             }
             return null;
@@ -400,17 +442,28 @@
 
         async function deleteNodeFromCloud(nodeId) {
             const token = localStorage.getItem("token");
-            if (!token) return;
+            if (!token) return false;
 
             setSyncStatus('syncing');
             try {
-                await fetch(`/api/nodes/${nodeId}`, {
+                const res = await fetch(`/api/nodes/${nodeId}`, {
                     method: "DELETE",
                     headers: { "Authorization": `Bearer ${token}` }
                 });
-                setSyncStatus('synced');
+
+                if (res.ok) {
+                    setSyncStatus('synced');
+                    return true;
+                } else {
+                    const error = await res.json();
+                    console.error("Delete error:", error);
+                    setSyncStatus('error');
+                    return false;
+                }
             } catch (err) {
+                console.error("Delete error:", err);
                 setSyncStatus('error');
+                return false;
             }
         }
 
@@ -418,20 +471,40 @@
 
         function loadFromStorage() {
             const userId = getUserIdFromToken();
-            const saved = localStorage.getItem(`renew_ai_nodes_${userId}`);
-            const proState = localStorage.getItem(`renew_ai_pro_${userId}`);
-            
-            nodes = saved ? JSON.parse(saved) : [];
-            isProUser = proState === 'true';
-            
-            if(isProUser) {
-                document.getElementById('subscription-badge').classList.remove('hidden');
+            if (!userId) {
+                console.warn("User ID not found, redirecting to login");
+                // Don't redirect immediately, let the backend handle auth
+                return;
+            }
+
+            try {
+                const saved = localStorage.getItem(`renew_ai_nodes_${userId}`);
+                const proState = localStorage.getItem(`renew_ai_pro_${userId}`);
+                
+                nodes = saved ? JSON.parse(saved) : [];
+                isProUser = proState === 'true';
+                
+                if (isProUser) {
+                    document.getElementById('subscription-badge').classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error("Storage load error:", err);
+                nodes = [];
+                isProUser = false;
             }
         }
 
         function saveToStorage() {
             const userId = getUserIdFromToken();
-            localStorage.setItem(`renew_ai_nodes_${userId}`, JSON.stringify(nodes));
+            if (!userId) {
+                console.warn("Cannot save: User ID not found");
+                return;
+            }
+            try {
+                localStorage.setItem(`renew_ai_nodes_${userId}`, JSON.stringify(nodes));
+            } catch (err) {
+                console.error("Storage save error:", err);
+            }
         }
 
         function renderCategories() {
@@ -451,6 +524,11 @@
             }
 
             const sector = SECTORS.find(s => s.name === cat);
+            if (!sector) {
+                console.error("Sector not found:", cat);
+                return;
+            }
+            
             document.getElementById('modal-cat').innerText = cat;
             document.getElementById('form-cat-val').value = cat;
             const sub = document.getElementById('form-sub');
@@ -481,17 +559,35 @@
         document.getElementById('node-form').onsubmit = async (e) => {
             e.preventDefault();
             
+            const catVal = document.getElementById('form-cat-val').value;
+            const subVal = document.getElementById('form-sub').value;
+            const freqVal = document.getElementById('form-freq').value;
+            const amtVal = document.getElementById('form-amt').value;
+            const expiryVal = document.getElementById('form-expiry').value;
+
+            // Validation
+            if (!catVal || !subVal || !freqVal || !amtVal || !expiryVal) {
+                alert("All fields are required!");
+                return;
+            }
+
+            if (parseFloat(amtVal) <= 0) {
+                alert("Amount must be greater than 0!");
+                return;
+            }
+
             const newNode = {
-                cat: document.getElementById('form-cat-val').value,
-                sub: document.getElementById('form-sub').value,
-                freq: document.getElementById('form-freq').value,
-                amt: parseFloat(document.getElementById('form-amt').value),
-                expiry: document.getElementById('form-expiry').value
+                cat: catVal,
+                sub: subVal,
+                freq: freqVal,
+                amt: parseFloat(amtVal),
+                expiry: expiryVal
             };
 
             closeModal();
             showNotifOverlay();
             
+            // Get AI suggestion (optional)
             newNode.aiSuggestion = await getAISuggestion(newNode);
             
             // Sync with backend before updating UI
@@ -506,24 +602,17 @@
                     renderNodes();
                     updateBurn();
                 }, 1000);
+            } else {
+                console.error("Failed to create node on server");
+                hideNotifOverlay();
+                alert("Error creating node. Please try again.");
             }
         };
 
         async function getAISuggestion(node) {
-            const apiKey = "";
-            const query = `Optimize ${node.sub} costing ₹${node.amt}.`;
-            try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        contents: [{ parts: [{ text: query }] }],
-                        systemInstruction: { parts: [{ text: "One short actionable tip, max 10 words." }] } 
-                    })
-                });
-                const result = await res.json();
-                return result.candidates?.[0]?.content?.parts?.[0]?.text || "Review 3 days before.";
-            } catch (e) { return "Check for seasonal family plan discounts."; }
+            // Return a default suggestion
+            // Note: To enable Gemini AI, add your API key in the environment variables
+            return "Set a reminder 3 days before expiry.";
         }
 
         function renderNodes() {
@@ -611,14 +700,22 @@
         }
 
         window.delNode = async (id) => {
+            if (!confirm("Are you sure you want to delete this node?")) {
+                return;
+            }
+
             // Delete from backend first
-            await deleteNodeFromCloud(id);
+            const success = await deleteNodeFromCloud(id);
             
-            // Update local state
-            nodes = nodes.filter(n => n.id !== id);
-            saveToStorage();
-            renderNodes();
-            updateBurn();
+            if (success) {
+                // Update local state
+                nodes = nodes.filter(n => n.id !== id);
+                saveToStorage();
+                renderNodes();
+                updateBurn();
+            } else {
+                alert("Failed to delete node. Please try again.");
+            }
         };
 
         function updateBurn() {
