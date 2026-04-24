@@ -6,6 +6,8 @@ const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 
+const connectDB = require("./config/db"); // ✅ REQUIRED
+
 const authRoutes = require("./routes/auth");
 const nodeRoutes = require("./routes/nodes");
 const alertRoutes = require("./routes/alert");
@@ -27,7 +29,7 @@ const io = socketIo(server, {
   }
 });
 
-// 🔥 optional: use in routes later
+// Optional access in routes
 app.set("io", io);
 
 io.on("connection", (socket) => {
@@ -104,7 +106,7 @@ app.use((req, res) => {
 // ================= START SERVER =================
 async function startServer() {
   try {
-    await connectDB(); // ✅ allowed here
+    await connectDB(); // ✅ now works
 
     const PORT = process.env.PORT || 5000;
 
@@ -119,4 +121,4 @@ async function startServer() {
   }
 }
 
-startServer();  
+startServer();
