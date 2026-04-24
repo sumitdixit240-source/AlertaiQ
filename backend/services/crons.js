@@ -18,42 +18,50 @@ const getIntervalMs = (freq) => {
 cron.schedule("* * * * *", async () => {
   console.log("⏱ Cron running...");
 
-  const now = new Date();
+  const now = Date.now();
 
   try {
     const alerts = await Alert.find({});
 
-    for (let a of alerts) {
+    for (const a of alerts) {
       try {
-        const expiry = new Date(a.expiryDate);
-        const diff = expiry - now;
+        if (!a.expiryDate) continue;
 
+        const expiryTime = new Date(a.expiryDate).getTime();
+        if (isNaN(expiryTime)) continue;
+
+        const diff = expiryTime - now;
+
+        // ❌ already expired
         if (diff <= 0) continue;
 
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
 
-        // ================= ONE-TIME (3 DAY REMINDER) =================
+        // ================= ONE-TIME ALERT =================
         if (a.frequency === "one-time") {
-          if (
-            diff <= 3 * 24 * 60 * 60 * 1000 &&
-            !a.reminderSent
-          ) {
+          const threeDays = 3 * 24 * 60 * 60 * 1000;
+
+          if (diff <= threeDays && !a.reminderSent) {
             await sendMail(
               a.email,
               "⚠️ Renewal Reminder",
               `
-              <h2>${a.title} Expiring Soon</h2>
-              <p><b>Category:</b> ${a.category}</p>
-              <p><b>Amount:</b> ₹${a.amount}</p>
-              <p><b>Expiry:</b> ${expiry.toLocaleString()}</p>
-              <h3>⏳ Time Left: ${days}d ${hours}h</h3>
+                <h2>${a.title} Expiring Soon</h2>
+                <p><b>Category:</b> ${a.category}</p>
+                <p><b>Amount:</b> ₹${a.amount}</p>
+                <p><b>Expiry:</b> ${new Date(expiryTime).toLocaleString()}</p>
+                <h3>⏳ Time Left: ${days}d ${hours}h</h3>
               `
             );
 
             a.reminderSent = true;
+            a.lastSent = new Date();
             await a.save();
+
+            console.log(`📩 One-time reminder sent → ${a.email}`);
           }
+
           continue;
         }
 
@@ -61,22 +69,28 @@ cron.schedule("* * * * *", async () => {
         const interval = getIntervalMs(a.frequency);
         if (!interval) continue;
 
-        if (!a.lastSent || (now - new Date(a.lastSent)) >= interval) {
+        const lastSentTime = a.lastSent
+          ? new Date(a.lastSent).getTime()
+          : 0;
+
+        if (now - lastSentTime >= interval) {
           await sendMail(
             a.email,
             "⏳ Renewal Alert",
             `
-            <h2>${a.title}</h2>
-            <p><b>Category:</b> ${a.category}</p>
-            <p><b>Amount:</b> ₹${a.amount}</p>
-            <p><b>Frequency:</b> ${a.frequency}</p>
-            <p><b>Expiry:</b> ${expiry.toLocaleString()}</p>
-            <h3>⏰ Time Left: ${days}d ${hours}h</h3>
+              <h2>${a.title}</h2>
+              <p><b>Category:</b> ${a.category}</p>
+              <p><b>Amount:</b> ₹${a.amount}</p>
+              <p><b>Frequency:</b> ${a.frequency}</p>
+              <p><b>Expiry:</b> ${new Date(expiryTime).toLocaleString()}</p>
+              <h3>⏰ Time Left: ${days}d ${hours}h</h3>
             `
           );
 
-          a.lastSent = now;
+          a.lastSent = new Date();
           await a.save();
+
+          console.log(`📩 Recurring alert sent → ${a.email}`);
         }
 
       } catch (innerErr) {
