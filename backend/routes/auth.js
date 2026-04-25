@@ -10,40 +10,70 @@ const auth = require("../middleware/auth");
 
 const router = express.Router();
 
+const sendTokenResponse = (user, res) => {
+  const token = jwt.sign(
+    {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  return res.json({
+    success: true,
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
+  });
+};
+
+//
 // ================= REGISTER =================
+//
 router.post("/register", async (req, res) => {
   try {
     let { name, email, password } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ msg: "All fields required" });
+      return res.status(400).json({ success: false, msg: "All fields required" });
     }
 
     email = email.toLowerCase().trim();
 
     const exists = await User.findOne({ email });
     if (exists) {
-      return res.status(409).json({ msg: "User already exists" });
+      return res.status(409).json({ success: false, msg: "User already exists" });
     }
 
     await User.create({
       name,
       email,
       password,
-      isVerified: false,
+      role: "user",
       tokenVersion: 0,
     });
 
-    res.json({ msg: "Registered successfully. Verify OTP." });
+    return res.json({
+      success: true,
+      msg: "Registered successfully. Please verify OTP.",
+    });
 
   } catch (err) {
     console.error("REGISTER:", err.message);
-    res.status(500).json({ msg: "Registration failed" });
+    res.status(500).json({ success: false, msg: "Registration failed" });
   }
 });
 
-
-// ================= SEND OTP (SECURE + RATE LIMIT FIX) =================
+//
+// ================= SEND OTP =================
+//
 router.post("/send-otp", async (req, res) => {
   try {
     let { email } = req.body;
@@ -51,12 +81,17 @@ router.post("/send-otp", async (req, res) => {
     email = email.toLowerCase().trim();
 
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ msg: "User not found" });
+    if (!user) {
+      return res.status(404).json({ success: false, msg: "User not found" });
+    }
 
-    // OTP cooldown (IMPORTANT FIX)
     const recent = await OTP.findOne({ email });
+
     if (recent && Date.now() - recent.createdAt.getTime() < 60 * 1000) {
-      return res.status(429).json({ msg: "Wait 1 minute before retry" });
+      return res.status(429).json({
+        success: false,
+        msg: "Please wait 1 minute before requesting again",
+      });
     }
 
     const otp = generateOTP();
@@ -66,21 +101,25 @@ router.post("/send-otp", async (req, res) => {
     await OTP.create({
       email,
       otp,
-      createdAt: new Date(),
     });
 
-    await sendMail(email, "AlertAIQ OTP", `Your OTP is ${otp}`);
+    await sendMail(
+      email,
+      "AlertAIQ OTP Verification",
+      `<h2>Your OTP is: <b>${otp}</b></h2>`
+    );
 
-    res.json({ msg: "OTP sent" });
+    return res.json({ success: true, msg: "OTP sent successfully" });
 
   } catch (err) {
     console.error("OTP ERROR:", err.message);
-    res.status(500).json({ msg: "OTP failed" });
+    res.status(500).json({ success: false, msg: "OTP failed" });
   }
 });
 
-
+//
 // ================= VERIFY OTP =================
+//
 router.post("/verify-otp", async (req, res) => {
   try {
     let { email, otp } = req.body;
@@ -88,16 +127,17 @@ router.post("/verify-otp", async (req, res) => {
     email = email.toLowerCase().trim();
 
     const record = await OTP.findOne({ email });
-    if (!record) return res.status(400).json({ msg: "OTP not found" });
+    if (!record) {
+      return res.status(400).json({ success: false, msg: "OTP not found" });
+    }
 
-    // expiration fix
     if (Date.now() - record.createdAt.getTime() > 5 * 60 * 1000) {
       await OTP.deleteMany({ email });
-      return res.status(400).json({ msg: "OTP expired" });
+      return res.status(400).json({ success: false, msg: "OTP expired" });
     }
 
     if (record.otp !== otp) {
-      return res.status(400).json({ msg: "Invalid OTP" });
+      return res.status(400).json({ success: false, msg: "Invalid OTP" });
     }
 
     await User.updateOne({ email }, { isVerified: true });
@@ -105,37 +145,17 @@ router.post("/verify-otp", async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    // 🔐 FIXED JWT (tokenVersion ADDED)
-    const token = jwt.sign(
-      {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-        tokenVersion: user.tokenVersion,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    res.json({
-      msg: "Verified",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        isPro: user.isPro,
-      },
-    });
+    return sendTokenResponse(user, res);
 
   } catch (err) {
     console.error("VERIFY OTP:", err.message);
-    res.status(500).json({ msg: "Verification failed" });
+    res.status(500).json({ success: false, msg: "Verification failed" });
   }
 });
 
-
+//
 // ================= LOGIN =================
+//
 router.post("/login", async (req, res) => {
   try {
     let { email, password } = req.body;
@@ -143,51 +163,41 @@ router.post("/login", async (req, res) => {
     email = email.toLowerCase().trim();
 
     const user = await User.findOne({ email }).select("+password");
-    if (!user) return res.status(404).json({ msg: "User not found" });
+    if (!user) {
+      return res.status(404).json({ success: false, msg: "User not found" });
+    }
 
     if (!user.isVerified) {
-      return res.status(403).json({ msg: "Verify OTP first" });
+      return res.status(403).json({ success: false, msg: "Verify OTP first" });
     }
 
     const ok = await user.comparePassword(password);
-    if (!ok) return res.status(400).json({ msg: "Invalid password" });
+    if (!ok) {
+      return res.status(400).json({ success: false, msg: "Invalid password" });
+    }
 
-    // 🔐 FIXED JWT (tokenVersion ADDED)
-    const token = jwt.sign(
-      {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-        tokenVersion: user.tokenVersion,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    res.json({
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        isPro: user.isPro,
-      },
-    });
+    return sendTokenResponse(user, res);
 
   } catch (err) {
     console.error("LOGIN:", err.message);
-    res.status(500).json({ msg: "Login failed" });
+    res.status(500).json({ success: false, msg: "Login failed" });
   }
 });
 
-
+//
 // ================= ME =================
+//
 router.get("/me", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
-    res.json(user);
+
+    return res.json({
+      success: true,
+      user,
+    });
+
   } catch (err) {
-    res.status(500).json({ msg: "Failed to fetch user" });
+    res.status(500).json({ success: false, msg: "Failed to fetch user" });
   }
 });
 
