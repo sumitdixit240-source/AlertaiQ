@@ -268,18 +268,29 @@
 
     <script>
         // 📍 BASE URL CONFIGURATION
-        const BASE_URL = "https://alertaiq.onrender.com";
+        const BASE_URL = "https://alertaiq.onrender.com"; // Change to your backend URL if different    
 
-        // Frequency mapping helpers
-        const mapFrequencyToBackend = (freq) => {
-            const map = { "Once": "one-time", "Daily": "daily", "Weekly": "weekly", "Monthly": "monthly" };
-            return map[freq] || "daily";
-        };
+        // Frequency mapping from frontend to backend
+        function mapFrequencyToBackend(frontendFreq) {
+            const frequencyMap = {
+                "Once": "one-time",
+                "Daily": "daily",
+                "Weekly": "weekly",
+                "Monthly": "monthly"
+            };
+            return frequencyMap[frontendFreq] || "daily";
+        }
 
-        const mapFrequencyToFrontend = (freq) => {
-            const map = { "one-time": "Once", "daily": "Daily", "weekly": "Weekly", "monthly": "Monthly" };
-            return map[freq] || "Daily";
-        };
+        // Frequency mapping from backend to frontend
+        function mapFrequencyToFrontend(backendFreq) {
+            const frequencyMap = {
+                "one-time": "Once",
+                "daily": "Daily",
+                "weekly": "Weekly",
+                "monthly": "Monthly"
+            };
+            return frequencyMap[backendFreq] || "Daily";
+        }
 
         const SECTORS = [
             { name: "SaaS Subscriptions", icon: "fa-cloud", subs: ["Amazon Prime", "Netflix", "ChatGPT Plus", "Claude Pro", "Adobe CC", "Spotify", "GitHub Pro", "Midjourney", "Figma Pro", "Canva"] },
@@ -299,7 +310,6 @@
         let activeIntervals = {};
         let isProUser = false;
 
-        // ✅ Improvement 1: Handled 'synced' state specifically in UI logic
         const setSyncStatus = (status) => {
             const dot = document.getElementById('sync-dot');
             const text = document.getElementById('sync-text');
@@ -309,11 +319,8 @@
             } else if (status === 'error') {
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500';
                 text.innerText = 'Sync Error';
-            } else if (status === 'synced') {
-                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
-                text.innerText = 'Synced';
             } else {
-                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
                 text.innerText = 'Cloud Synced';
             }
         };
@@ -330,37 +337,34 @@
         }
 
         window.onload = () => {
-            loadFromStorage();
-            renderCategories();
-            renderNodes();
-            updateBurn();
-            initMesh();
-            loadNodes(); 
-            document.getElementById('main-ui').classList.remove('opacity-0');
+            try {
+                loadFromStorage();
+                renderCategories();
+                renderNodes();
+                updateBurn();
+                initMesh();
+                loadNodes(); 
+                document.getElementById('main-ui').classList.remove('opacity-0');
+            } catch (err) {
+                console.error("Initialization error:", err);
+            }
         };
 
-        // ✅ Improvement 2 & 6: Safer API data handling & Merging logic
+        // 🔧 STEP 2.1: FIX loadNodes()
         window.loadNodes = async function() {
             const token = localStorage.getItem("token");
             if (!token) return;
 
             setSyncStatus('syncing');
             try {
-                const res = await fetch(`${BASE_URL}/api/nodes`, {
+                const res = await fetch(`https://alertaiq.onrender.com/api/nodes`, {
                     method: "GET",
                     headers: { "Authorization": `Bearer ${token}` }
                 });
 
                 if (res.ok) {
-                    let apiData = [];
-                    try {
-                        apiData = await res.json();
-                    } catch (e) {
-                        console.error("Failed to parse API response", e);
-                        apiData = [];
-                    }
-
-                    const cloudNodes = apiData.map(node => ({
+                    const apiData = await res.json();
+                    nodes = apiData.map(node => ({
                         id: node._id,
                         cat: node.category || "SaaS Subscriptions",
                         sub: node.title,
@@ -369,14 +373,6 @@
                         expiry: node.expiryDate || new Date().toISOString(),
                         aiSuggestion: "Optimized monitoring active."
                     }));
-
-                    // Logic: Merge cloud nodes with existing local nodes to avoid duplication
-                    // Cloud nodes are the "source of truth", so we prioritize their IDs
-                    const cloudIds = new Set(cloudNodes.map(cn => cn.id));
-                    const uniqueLocalNodes = nodes.filter(n => !n.id || !cloudIds.has(n.id));
-                    
-                    nodes = [...cloudNodes, ...uniqueLocalNodes];
-                    
                     saveToStorage();
                     renderNodes();
                     updateBurn();
@@ -385,18 +381,17 @@
                     setSyncStatus('error');
                 }
             } catch (err) {
-                console.error("GET /nodes failed:", err);
                 setSyncStatus('error');
             }
         };
 
-        // ✅ Improvement 3 & 4: Better logging and backend mismatch handling
+        // 🔧 STEP 2.2: FIX pushNodeToCloud()
         async function pushNodeToCloud(nodeData) {
             const token = localStorage.getItem("token");
             if (!token) return null;
             setSyncStatus('syncing');
             try {
-                const res = await fetch(`${BASE_URL}/api/nodes`, {
+                const res = await fetch(`https://alertaiq.onrender.com/api/nodes`, {
                     method: "POST",
                     headers: { 
                         "Authorization": `Bearer ${token}`,
@@ -410,29 +405,24 @@
                         expiryDate: nodeData.expiry
                     })
                 });
-                
                 if (res.ok) {
                     const saved = await res.json();
                     setSyncStatus('synced');
-                    // Safety check for backend returning full object or just ID
-                    return saved; 
-                } else {
-                    const errData = await res.text();
-                    console.error("Server rejected node creation:", errData);
+                    // 🔧 STEP 3: Return the full object
+                    return saved;
                 }
-            } catch (err) { 
-                console.error("POST /nodes failed:", err); 
-            }
+            } catch (err) { console.error(err); }
             setSyncStatus('error');
             return null;
         }
 
+        // 🔧 STEP 2.3: FIX deleteNodeFromCloud()
         async function deleteNodeFromCloud(nodeId) {
             const token = localStorage.getItem("token");
             if (!token) return false;
             setSyncStatus('syncing');
             try {
-                const res = await fetch(`${BASE_URL}/api/nodes/${nodeId}`, {
+                const res = await fetch(`https://alertaiq.onrender.com/api/nodes/${nodeId}`, {
                     method: "DELETE",
                     headers: { "Authorization": `Bearer ${token}` }
                 });
@@ -440,9 +430,7 @@
                     setSyncStatus('synced');
                     return true;
                 }
-            } catch (err) { 
-                console.error("DELETE /nodes failed:", err); 
-            }
+            } catch (err) { console.error(err); }
             setSyncStatus('error');
             return false;
         }
@@ -513,21 +501,27 @@
             closeModal();
             showNotifOverlay();
             
+            // 🔧 STEP 4: Submit block logic
             const cloudData = await pushNodeToCloud(newNode);
 
-            // Safer check for ID presence
-            if (cloudData && (cloudData._id || cloudData.id)) {
-                newNode.id = cloudData._id || cloudData.id;
+            if (cloudData && cloudData._id) {
+                // Update local node with ID from DB
+                newNode.id = cloudData._id;
+
                 nodes.unshift(newNode);
                 saveToStorage();
+
                 newlyAddedId = newNode.id;
+
                 setTimeout(() => {
                     renderNodes();
                     updateBurn();
                 }, 500);
+
             } else {
                 hideNotifOverlay();
-                console.error("Cloud Error: Node created in local but failed in DB.");
+                console.error("Cloud Error:", cloudData);
+                alert("❌ Backend not reachable or API error");
             }
         };
 
@@ -569,9 +563,7 @@
                     </div>
                 </div>
             `).join('');
-            nodes.forEach(n => {
-                if (n.id) startTimer(n.id, n.expiry);
-            });
+            nodes.forEach(n => startTimer(n.id, n.expiry));
             newlyAddedId = null;
         }
 
@@ -588,16 +580,10 @@
                 const h = Math.floor((diff % 86400000) / 3600000);
                 const m = Math.floor((diff % 3600000) / 60000);
                 const s = Math.floor((diff % 60000) / 1000);
-                
-                const dEl = el.querySelector('[data-unit="days"]');
-                const hEl = el.querySelector('[data-unit="hours"]');
-                const mEl = el.querySelector('[data-unit="minutes"]');
-                const sEl = el.querySelector('[data-unit="seconds"]');
-                
-                if (dEl) dEl.innerText = String(d).padStart(2, '0');
-                if (hEl) hEl.innerText = String(h).padStart(2, '0');
-                if (mEl) mEl.innerText = String(m).padStart(2, '0');
-                if (sEl) sEl.innerText = String(s).padStart(2, '0');
+                el.querySelector('[data-unit="days"]').innerText = String(d).padStart(2, '0');
+                el.querySelector('[data-unit="hours"]').innerText = String(h).padStart(2, '0');
+                el.querySelector('[data-unit="minutes"]').innerText = String(m).padStart(2, '0');
+                el.querySelector('[data-unit="seconds"]').innerText = String(s).padStart(2, '0');
             };
             update();
             activeIntervals[id] = setInterval(update, 1000);
@@ -646,8 +632,7 @@
             let timeLeft = 3;
             setInterval(() => {
                 timeLeft -= 1;
-                const timerEl = document.getElementById('logout-timer');
-                if (timerEl) timerEl.innerText = timeLeft;
+                document.getElementById('logout-timer').innerText = timeLeft;
                 if (timeLeft <= 0) {
                     localStorage.removeItem("token");
                     window.location.href = 'login.html'; 
@@ -657,7 +642,6 @@
 
         function initMesh() {
             const canvas = document.getElementById('mesh-canvas');
-            if (!canvas) return;
             const ctx = canvas.getContext('2d');
             let w, h, particles = [];
             const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };

@@ -102,6 +102,12 @@
 
         .btn-startup:active { transform: scale(0.98); }
 
+        .btn-startup:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         #overlay {
             position: fixed;
             inset: 0;
@@ -125,6 +131,34 @@
             scrollbar-width: none;
         }
         .modal-content::-webkit-scrollbar { display: none; }
+
+        .badge {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+            padding: 6px 12px;
+            border-radius: 100px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        #msg-box {
+            position: fixed;
+            top: 1rem;
+            left: 50%;
+            transform: translate(-50%, -100%);
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-radius: 16px;
+            width: calc(100% - 2rem);
+            max-width: 400px;
+        }
+
+        #msg-box.active { transform: translate(-50%, 0); opacity: 1; }
 
         .scan-container {
             position: relative;
@@ -166,39 +200,6 @@
             100% { transform: translateY(clamp(90px, 18vw, 130px)); }
         }
 
-        .badge {
-            background: rgba(99, 102, 241, 0.1);
-            color: var(--primary);
-            padding: 6px 12px;
-            border-radius: 100px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            border: 1px solid rgba(99, 102, 241, 0.2);
-        }
-
-        #msg-box {
-            position: fixed;
-            top: 1rem;
-            left: 50%;
-            transform: translate(-50%, -100%);
-            z-index: 200;
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            border-radius: 16px;
-            width: calc(100% - 2rem);
-            max-width: 400px;
-        }
-
-        #msg-box.active { transform: translate(-50%, 0); opacity: 1; }
-
-        @media (min-width: 768px) {
-            #msg-box { left: auto; right: 1.5rem; transform: translateY(-20px); width: auto; }
-            #msg-box.active { transform: translateY(0); }
-        }
-
         .font-mono-custom { font-family: 'JetBrains Mono', monospace; }
         .hero-title { font-size: clamp(2.5rem, 8vw, 4rem); line-height: 1.1; }
     </style>
@@ -210,7 +211,7 @@
 <div class="grid-overlay"></div>
 <div id="glow" class="glow-cursor"></div>
 
-<!-- Custom Message Box for System Notifications -->
+<!-- Custom Message Box -->
 <div id="msg-box" class="glass-card px-5 py-4 flex items-center gap-4 border-l-4 border-indigo-500">
     <div class="w-8 h-8 bg-indigo-500/10 rounded-full flex items-center justify-center flex-shrink-0">
         <i class="fas fa-shield-check text-indigo-500 text-sm"></i>
@@ -299,7 +300,7 @@
             <i class="fas fa-times text-xs"></i>
         </button>
 
-        <!-- Verification/Scanning State -->
+        <!-- Verification/Scanning Overlay -->
         <div id="verifyBox" class="hidden absolute inset-0 bg-[#050507] z-[120] flex flex-col items-center justify-center p-8 text-center">
             <div class="scan-container">
                 <div class="scan-ring-bold"></div>
@@ -400,12 +401,152 @@
 </div>
 
 <script>
-// ✅ FIXED BACKEND CONFIGURATION
-const BACKEND_URL = "https://alertaiq.onrender.com";
+// ✅ FIXED: Environment-aware Backend URL
+const BACKEND_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:5000"
+    : "https://alertaiq.onrender.com";
+
+// DOM Accessors
+const emailEl = document.getElementById("email");
+const passwordEl = document.getElementById("password");
+const otpEl = document.getElementById("otp-code");
+const otpGroup = document.getElementById("otp-group");
+const mainBtn = document.getElementById("main-btn");
+const rname = document.getElementById("rname");
+const remail = document.getElementById("remail");
+const rpass = document.getElementById("rpass");
+
+// Global State
+let isLoading = false;
+
+async function safeJSON(res) {
+    try {
+        return await res.json();
+    } catch {
+        return {};
+    }
+}
+
+const Auth = {
+    step: "idle", // idle → otp_sent
+
+    async request(url, body) {
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify(body)
+            });
+
+            const data = await safeJSON(res);
+
+            if (!res.ok) {
+                throw new Error(data.message || data.msg || "Request failed");
+            }
+
+            return data;
+        } catch (err) {
+            throw new Error(err.message || "Network connection error");
+        }
+    },
+
+    saveToken(token) {
+        if (!token) return;
+        sessionStorage.setItem("auth_token", token);
+    },
+
+    async handleLogin() {
+        if (isLoading) return;
+
+        const email = emailEl.value.trim();
+        const password = passwordEl.value.trim();
+        const otp = otpEl.value.trim();
+
+        if (!email) return UI.notify("Enter your email address");
+
+        isLoading = true;
+        UI.showVerification("Processing", "Please wait...");
+
+        try {
+            // ===== OTP FLOW =====
+            if (UI.mode === "otp") {
+                if (Auth.step === "idle") {
+                    await Auth.request(`${BACKEND_URL}/api/auth/send-otp`, { email });
+                    Auth.step = "otp_sent";
+                    UI.hideVerification();
+                    UI.notify("Security code sent to your email");
+                    otpGroup.classList.remove("hidden");
+                    mainBtn.innerText = "Verify Access Code";
+                    return;
+                }
+
+                if (!otp) throw new Error("Enter the verification code");
+
+                const data = await Auth.request(`${BACKEND_URL}/api/auth/verify-otp`, {
+                    email,
+                    otp
+                });
+                Auth.saveToken(data.token);
+                UI.showSuccess();
+                setTimeout(() => window.location.href = "index.html", 1200);
+                return;
+            }
+
+            // ===== PASSWORD FLOW =====
+            if (!password) throw new Error("Enter your password");
+
+            const data = await Auth.request(`${BACKEND_URL}/api/auth/login`, {
+                email,
+                password
+            });
+            Auth.saveToken(data.token);
+            UI.showSuccess();
+            setTimeout(() => window.location.href = "index.html", 1200);
+
+        } catch (err) {
+            UI.hideVerification();
+            UI.notify("❌ " + err.message);
+        } finally {
+            isLoading = false;
+        }
+    },
+
+    async register() {
+        if (isLoading) return;
+
+        const username = rname.value.trim();
+        const email = remail.value.trim();
+        const password = rpass.value.trim();
+
+        if (!username || !email || !password)
+            return UI.notify("All registration fields required");
+
+        isLoading = true;
+        UI.showVerification("Creating Account", "Deploying monitor...");
+
+        try {
+            await Auth.request(`${BACKEND_URL}/api/auth/register`, {
+                name: username,
+                email,
+                password
+            });
+            UI.hideVerification();
+            UI.notify("Account initialized successfully");
+            setTimeout(() => UI.showLogin(), 1500);
+        } catch (err) {
+            UI.hideVerification();
+            UI.notify("❌ " + err.message);
+        } finally {
+            isLoading = false;
+        }
+    }
+};
 
 const UI = {
     mode: 'otp',
-    step: 'idle',
 
     open() {
         document.getElementById("overlay").classList.add("active");
@@ -420,21 +561,28 @@ const UI = {
     },
 
     reset() {
-        this.step = 'idle';
+        Auth.step = 'idle';
         document.getElementById('email').value = '';
         document.getElementById('password').value = '';
         document.getElementById('otp-code').value = '';
+
+        // Reset visibility
         document.getElementById('otp-group').classList.add('hidden');
-        document.getElementById('main-btn').innerText = 'Unlock Dashboard';
+        document.getElementById('pass-group').classList.toggle('hidden', this.mode !== 'pass');
+        document.getElementById('otp-group').classList.toggle('hidden', this.mode !== 'otp');
+
+        // Reset Button Text based on mode
+        mainBtn.innerText = this.mode === 'otp' ? 'Send Access Code' : 'Unlock Dashboard';
+
         document.getElementById('verifyBox').classList.add('hidden');
         document.getElementById('successBox').classList.add('hidden');
         document.getElementById('modal-close').classList.remove('hidden');
     },
 
     showLogin() {
-        this.reset();
         document.getElementById("loginBox").classList.remove("hidden");
         document.getElementById("registerBox").classList.add("hidden");
+        this.reset();
     },
 
     showRegister() {
@@ -461,22 +609,19 @@ const UI = {
 
     setMode(m) {
         this.mode = m;
-        this.step = 'idle';
+        
         const otpBtn = document.getElementById('mode-otp');
         const passBtn = document.getElementById('mode-pass');
         
         if (m === 'otp') {
             otpBtn.className = "flex-1 py-2.5 text-[10px] font-bold rounded-lg transition-all bg-white text-black";
             passBtn.className = "flex-1 py-2.5 text-[10px] font-bold rounded-lg transition-all text-slate-400";
-            document.getElementById('main-btn').innerText = 'Send OTP';
         } else {
             passBtn.className = "flex-1 py-2.5 text-[10px] font-bold rounded-lg transition-all bg-white text-black";
             otpBtn.className = "flex-1 py-2.5 text-[10px] font-bold rounded-lg transition-all text-slate-400";
-            document.getElementById('main-btn').innerText = 'Unlock Dashboard';
         }
 
-        document.getElementById('pass-group').classList.toggle('hidden', m !== 'pass');
-        document.getElementById('otp-group').classList.add('hidden');
+        this.reset();
     },
 
     notify(msg) {
@@ -484,107 +629,6 @@ const UI = {
         document.getElementById("msg-text").innerText = msg;
         box.classList.add("active");
         setTimeout(() => box.classList.remove("active"), 4000);
-    }
-};
-
-const Auth = {
-    async handleLogin() {
-        const email = document.getElementById("email").value.trim();
-        const password = document.getElementById("password").value.trim();
-        const otp = document.getElementById("otp-code").value.trim();
-
-        if (!email) return UI.notify("⚠️ Enter email address");
-
-        UI.showVerification("Authentication", "Verifying credentials...");
-
-        try {
-            if (UI.mode === 'otp') {
-                if (UI.step === 'idle') {
-                    const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                        body: JSON.stringify({ email })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.message || data.msg || "Failed to send OTP");
-
-                    UI.step = 'otp_sent';
-                    UI.hideVerification();
-                    UI.notify("✅ OTP sent to email");
-                    document.getElementById('otp-group').classList.remove('hidden');
-                    document.getElementById('main-btn').innerText = "Verify OTP";
-                    return;
-                }
-
-                const res = await fetch(`${BACKEND_URL}/api/auth/verify-otp`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                    body: JSON.stringify({ email, otp })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.message || data.msg || "OTP invalid");
-                
-                localStorage.setItem("token", data.token);
-                UI.showSuccess();
-                setTimeout(() => window.location.href = "index.html", 1500);
-                return;
-            }
-
-            const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                body: JSON.stringify({ email, password })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || data.msg || "Login failed");
-
-            localStorage.setItem("token", data.token);
-            UI.showSuccess();
-            setTimeout(() => window.location.href = "index.html", 1500);
-
-        } catch (err) {
-            UI.hideVerification();
-            UI.notify("❌ " + err.message);
-        }
-    },
-
-    async register() {
-        const username = document.getElementById("rname").value.trim();
-        const email = document.getElementById("remail").value.trim();
-        const password = document.getElementById("rpass").value.trim();
-
-        if (!username || !email || !password) return UI.notify("⚠️ Fill all fields");
-
-        UI.showVerification("Constructing Profile", "Setting up security...");
-        try {
-            const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                },
-                body: JSON.stringify({ 
-                    username: username,
-                    name: username, 
-                    email: email, 
-                    password: password 
-                })
-            });
-            
-            const data = await res.json();
-            
-            if (!res.ok) {
-                throw new Error(data.message || data.msg || "Registration failed");
-            }
-
-            UI.notify("✅ Account Created! Please Login.");
-            setTimeout(() => UI.showLogin(), 2000);
-            
-        } catch (err) {
-            UI.hideVerification();
-            UI.notify("❌ " + err.message);
-            console.error("Registration Error:", err);
-        }
     }
 };
 
