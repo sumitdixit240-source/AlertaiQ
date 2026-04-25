@@ -5,36 +5,37 @@ module.exports = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    // 🔐 Check Authorization header
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // 🔐 Check header
+    if (!authHeader?.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Authorization required" });
     }
 
     const token = authHeader.split(" ")[1];
 
-    // 🔐 Verify JWT
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    if (!decoded || !decoded.id) {
-      return res.status(401).json({ message: "Invalid token" });
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET missing");
+      return res.status(500).json({ message: "Server misconfiguration" });
     }
 
-    // 🔐 Fetch user from DB (security check)
+    // 🔐 Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // 🔐 Get user
     const user = await User.findById(decoded.id).select("-password");
 
     if (!user) {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // 🔐 Token version check (forces logout after password change / logout all sessions)
+    // 🔐 Token version check
     if (
       decoded.tokenVersion !== undefined &&
       user.tokenVersion !== decoded.tokenVersion
     ) {
-      return res.status(401).json({ message: "Session expired. Please login again." });
+      return res.status(401).json({ message: "Session expired" });
     }
 
-    // ✅ Attach user to request
+    // ✅ Attach user
     req.user = {
       id: user._id,
       email: user.email,
@@ -42,12 +43,17 @@ module.exports = async (req, res, next) => {
     };
 
     next();
+
   } catch (err) {
-    // 🔐 Token expired handling
     if (err.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Token expired" });
     }
 
-    return res.status(401).json({ message: "Unauthorized access" });
+    if (err.name === "JsonWebTokenError") {
+      return res.status(401).json({ message: "Invalid token" });
+    }
+
+    console.error("AUTH ERROR:", err.message);
+    return res.status(401).json({ message: "Unauthorized" });
   }
 };
