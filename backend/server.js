@@ -29,7 +29,7 @@ app.use(
   })
 );
 
-// ================= CORS (FIXED PRODUCTION VERSION) =================
+// ================= CORS =================
 const allowedOrigins = [
   "https://alertai-q.vercel.app",
   "http://127.0.0.1:5500",
@@ -53,8 +53,13 @@ app.use(
   })
 );
 
-// ✅ IMPORTANT: Handle preflight requests
-app.options("*", cors());
+// ================= ✅ FIXED PREFLIGHT HANDLER =================
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 // ================= BODY PARSER =================
 app.use(express.json());
@@ -97,7 +102,7 @@ const limiter = rateLimit({
 
 app.use("/api", limiter);
 
-// ================= OTP / AUTH RATE LIMIT =================
+// ================= AUTH RATE LIMIT =================
 const authLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 10,
@@ -130,7 +135,7 @@ app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-// ================= GLOBAL ERROR HANDLER =================
+// ================= ERROR HANDLER =================
 app.use((err, req, res, next) => {
   console.error("❌ ERROR:", err.message);
 
