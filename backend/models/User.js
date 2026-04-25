@@ -10,59 +10,61 @@ const userSchema = new mongoose.Schema(
       trim: true,
       minlength: 2,
       maxlength: 50,
-      default: "User"
     },
 
     email: {
       type: String,
       required: true,
-      unique: true, // ✅ single source of truth for index
+      unique: true,
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, "Invalid email format"]
+      index: true,
     },
 
+    // ================= SECURITY =================
     password: {
       type: String,
       required: true,
       minlength: 6,
-      select: false
-    },
-
-    // ================= ACCOUNT STATUS =================
-    isVerified: {
-      type: Boolean,
-      default: false
-    },
-
-    isPro: {
-      type: Boolean,
-      default: false
+      select: false, // never return password
     },
 
     role: {
       type: String,
       enum: ["user", "admin"],
-      default: "user"
+      default: "user",
     },
 
-    // ================= SECURITY =================
+    // ✅ EMAIL / ACCOUNT VERIFICATION
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    // ✅ PRO / PREMIUM FEATURE FLAG
+    isPro: {
+      type: Boolean,
+      default: false,
+    },
+
+    // 🔐 TOKEN SECURITY (logout all devices support)
     tokenVersion: {
       type: Number,
-      default: 0
+      default: 0,
     },
 
-    // ================= TRACKING =================
+    // 📌 TRACK LOGIN TIME
     lastLogin: {
       type: Date,
-      default: null
-    }
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-
-// ================= PASSWORD HASH =================
+// ================= PASSWORD HASHING =================
 userSchema.pre("save", async function (next) {
   try {
     if (!this.isModified("password")) return next();
@@ -76,19 +78,15 @@ userSchema.pre("save", async function (next) {
   }
 });
 
-
 // ================= PASSWORD CHECK =================
 userSchema.methods.comparePassword = async function (enteredPassword) {
-  if (!this.password) return false;
   return bcrypt.compare(enteredPassword, this.password);
 };
 
-
-// ================= SECURITY HELPERS =================
-userSchema.methods.incrementTokenVersion = async function () {
-  this.tokenVersion += 1;
-  await this.save();
+// ================= LOGIN TRACKING =================
+userSchema.methods.updateLogin = function () {
+  this.lastLogin = new Date();
+  return this.save();
 };
-
 
 module.exports = mongoose.model("User", userSchema);
