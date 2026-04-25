@@ -5,6 +5,8 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const mongoSanitize = require("express-mongo-sanitize");
+const xss = require("xss-clean");
 
 const connectDB = require("./config/db");
 
@@ -14,57 +16,89 @@ const alertRoutes = require("./routes/alert");
 
 dotenv.config();
 
-// ================= APP =================
 const app = express();
 const server = http.createServer(app);
+
+// ================= TRUST PROXY (IMPORTANT FOR RENDER/PROD) =================
+app.set("trust proxy", 1);
 
 // ================= SOCKET =================
 const io = socketIo(server, {
   cors: {
-    origin: true, // allow all (safe for dev + Vercel)
-    methods: ["GET", "POST", "PUT", "DELETE"]
-  }
+    origin: process.env.FRONTEND_URL || "*",
+    credentials: true,
+  },
 });
 
 app.set("io", io);
 
+// ====== SOCKET SECURITY (BASIC USER ISOLATION) ======
 io.on("connection", (socket) => {
-  console.log("⚡ User connected:", socket.id);
+  console.log("⚡ Socket Connected:", socket.id);
+
+  // safer join (avoid fake userId abuse)
+  socket.on("join", (userId) => {
+    if (typeof userId === "string" && userId.length < 100) {
+      socket.join(userId);
+    }
+  });
 
   socket.on("disconnect", () => {
-    console.log("❌ User disconnected:", socket.id);
+    console.log("❌ Socket Disconnected:", socket.id);
   });
 });
 
-// ================= SECURITY =================
-app.use(helmet());
-
-// ================= CORS FIX =================
-// ⚠️ IMPORTANT: DO NOT use complex origin check unless needed
+// ================= SECURITY HEADERS =================
 app.use(
-  cors({
-    origin: true,
-    credentials: true
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
   })
 );
 
-// ✅ FIX preflight (important for POST/PUT from Vercel)
-app.options("*", cors());
+// ================= CORS =================
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  "http://localhost:3000",
+].filter(Boolean);
 
-// ================= RATE LIMIT =================
 app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100
+  cors({
+    origin: function (origin, callback) {
+      // allow mobile apps / postman / server-to-server
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS blocked"));
+    },
+    credentials: true,
   })
 );
 
 // ================= BODY PARSER =================
-app.use(express.json());
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true }));
 
-// ================= LOG REQUESTS =================
+// ================= DATA SANITIZATION =================
+app.use(mongoSanitize()); // prevents NoSQL injection
+app.use(xss()); // prevents XSS attacks
+
+// ================= RATE LIMIT =================
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many requests, try again later.",
+});
+
+app.use("/api", limiter);
+
+// ================= SIMPLE REQUEST LOG =================
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
@@ -75,14 +109,23 @@ app.use("/api/alerts", alertRoutes);
 
 // ================= HEALTH CHECK =================
 app.get("/", (req, res) => {
-  res.json({ status: "🚀 AlertAIQ Server Running" });
+  res.json({
+    status: "🚀 AlertAIQ Running Secure Mode",
+    time: new Date().toISOString(),
+  });
 });
 
-// ================= ERROR HANDLER =================
+// ================= 404 =================
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
+
+// ================= GLOBAL ERROR HANDLER =================
 app.use((err, req, res, next) => {
-  console.error("❌ Server Error:", err.message);
+  console.error("❌ ERROR:", err.message);
+
   res.status(500).json({
-    message: err.message || "Internal Server Error"
+    message: "Internal Server Error",
   });
 });
 
@@ -95,11 +138,11 @@ async function startServer() {
 
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log("⚡ Socket.IO enabled");
+      console.log("🔐 Security: ENABLED");
+      console.log("🌍 CORS:", allowedOrigins);
     });
-
   } catch (err) {
-    console.error("❌ DB ERROR:", err.message);
+    console.error("❌ DB CONNECTION ERROR:", err.message);
     process.exit(1);
   }
 }
