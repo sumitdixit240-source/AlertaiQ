@@ -5,12 +5,16 @@ const User = require("../models/User");
 const OTP = require("../models/OTP");
 const sendMail = require("../services/mailer");
 const generateOTP = require("../utils/generateOTP");
-
 const auth = require("../middleware/auth");
 
 const router = express.Router();
 
+// ================= TOKEN =================
 const sendTokenResponse = (user, res) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET missing in env");
+  }
+
   const token = jwt.sign(
     {
       id: user._id,
@@ -39,7 +43,7 @@ const sendTokenResponse = (user, res) => {
 //
 router.post("/register", async (req, res) => {
   try {
-    let { name, email, password } = req.body;
+    let { name, email, password } = req.body || {};
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, msg: "All fields required" });
@@ -66,8 +70,8 @@ router.post("/register", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("REGISTER:", err.message);
-    res.status(500).json({ success: false, msg: "Registration failed" });
+    console.error("REGISTER ERROR:", err);
+    return res.status(500).json({ success: false, msg: "Registration failed" });
   }
 });
 
@@ -76,7 +80,11 @@ router.post("/register", async (req, res) => {
 //
 router.post("/send-otp", async (req, res) => {
   try {
-    let { email } = req.body;
+    let { email } = req.body || {};
+
+    if (!email) {
+      return res.status(400).json({ success: false, msg: "Email required" });
+    }
 
     email = email.toLowerCase().trim();
 
@@ -87,7 +95,7 @@ router.post("/send-otp", async (req, res) => {
 
     const recent = await OTP.findOne({ email });
 
-    if (recent && Date.now() - recent.createdAt.getTime() < 60 * 1000) {
+    if (recent && Date.now() - new Date(recent.createdAt).getTime() < 60 * 1000) {
       return res.status(429).json({
         success: false,
         msg: "Please wait 1 minute before requesting again",
@@ -98,10 +106,7 @@ router.post("/send-otp", async (req, res) => {
 
     await OTP.deleteMany({ email });
 
-    await OTP.create({
-      email,
-      otp,
-    });
+    await OTP.create({ email, otp });
 
     await sendMail(
       email,
@@ -112,8 +117,8 @@ router.post("/send-otp", async (req, res) => {
     return res.json({ success: true, msg: "OTP sent successfully" });
 
   } catch (err) {
-    console.error("OTP ERROR:", err.message);
-    res.status(500).json({ success: false, msg: "OTP failed" });
+    console.error("OTP ERROR:", err);
+    return res.status(500).json({ success: false, msg: "OTP failed" });
   }
 });
 
@@ -122,16 +127,21 @@ router.post("/send-otp", async (req, res) => {
 //
 router.post("/verify-otp", async (req, res) => {
   try {
-    let { email, otp } = req.body;
+    let { email, otp } = req.body || {};
+
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, msg: "Missing fields" });
+    }
 
     email = email.toLowerCase().trim();
 
     const record = await OTP.findOne({ email });
+
     if (!record) {
       return res.status(400).json({ success: false, msg: "OTP not found" });
     }
 
-    if (Date.now() - record.createdAt.getTime() > 5 * 60 * 1000) {
+    if (Date.now() - new Date(record.createdAt).getTime() > 5 * 60 * 1000) {
       await OTP.deleteMany({ email });
       return res.status(400).json({ success: false, msg: "OTP expired" });
     }
@@ -148,8 +158,8 @@ router.post("/verify-otp", async (req, res) => {
     return sendTokenResponse(user, res);
 
   } catch (err) {
-    console.error("VERIFY OTP:", err.message);
-    res.status(500).json({ success: false, msg: "Verification failed" });
+    console.error("VERIFY OTP ERROR:", err);
+    return res.status(500).json({ success: false, msg: "Verification failed" });
   }
 });
 
@@ -158,11 +168,16 @@ router.post("/verify-otp", async (req, res) => {
 //
 router.post("/login", async (req, res) => {
   try {
-    let { email, password } = req.body;
+    let { email, password } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, msg: "Missing fields" });
+    }
 
     email = email.toLowerCase().trim();
 
     const user = await User.findOne({ email }).select("+password");
+
     if (!user) {
       return res.status(404).json({ success: false, msg: "User not found" });
     }
@@ -172,6 +187,7 @@ router.post("/login", async (req, res) => {
     }
 
     const ok = await user.comparePassword(password);
+
     if (!ok) {
       return res.status(400).json({ success: false, msg: "Invalid password" });
     }
@@ -179,8 +195,8 @@ router.post("/login", async (req, res) => {
     return sendTokenResponse(user, res);
 
   } catch (err) {
-    console.error("LOGIN:", err.message);
-    res.status(500).json({ success: false, msg: "Login failed" });
+    console.error("LOGIN ERROR:", err);
+    return res.status(500).json({ success: false, msg: "Login failed" });
   }
 });
 
@@ -197,7 +213,8 @@ router.get("/me", auth, async (req, res) => {
     });
 
   } catch (err) {
-    res.status(500).json({ success: false, msg: "Failed to fetch user" });
+    console.error("ME ERROR:", err);
+    return res.status(500).json({ success: false, msg: "Failed to fetch user" });
   }
 });
 
