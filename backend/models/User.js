@@ -35,27 +35,39 @@ const userSchema = new mongoose.Schema(
       default: "user",
     },
 
-    // ✅ EMAIL / ACCOUNT VERIFICATION
+    // ================= ACCOUNT STATUS =================
     isVerified: {
       type: Boolean,
       default: false,
     },
 
-    // ✅ PRO / PREMIUM FEATURE FLAG
-    isPro: {
+    // ================= PREMIUM SYSTEM (FIXED) =================
+    isPremium: {
       type: Boolean,
       default: false,
     },
 
-    // 🔐 TOKEN SECURITY (logout all devices support)
+    plan: {
+      type: String,
+      enum: ["free", "premium"],
+      default: "free",
+    },
+
+    // ================= SECURITY TOKENS =================
     tokenVersion: {
       type: Number,
       default: 0,
     },
 
-    // 📌 TRACK LOGIN TIME
+    // ================= LOGIN TRACKING =================
     lastLogin: {
       type: Date,
+      default: null,
+    },
+
+    // ================= PAYMENT TRACKING (OPTIONAL BUT USEFUL) =================
+    razorpayCustomerId: {
+      type: String,
       default: null,
     },
   },
