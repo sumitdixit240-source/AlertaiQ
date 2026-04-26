@@ -9,7 +9,6 @@ const auth = require("../middleware/auth");
 
 const router = express.Router();
 
-
 // ================= TOKEN =================
 const createToken = (user) => {
   return jwt.sign(
@@ -17,13 +16,12 @@ const createToken = (user) => {
       id: user._id,
       email: user.email,
       role: user.role,
-      isVerified: user.isVerified
+      isVerified: user.isVerified,
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
 };
-
 
 // ================= AUTH RESPONSE =================
 const sendAuthResponse = (user, res, message = "Success") => {
@@ -38,11 +36,10 @@ const sendAuthResponse = (user, res, message = "Success") => {
       name: user.name,
       email: user.email,
       role: user.role,
-      isVerified: user.isVerified
-    }
+      isVerified: user.isVerified,
+    },
   });
 };
-
 
 // ================= REGISTER =================
 router.post("/register", async (req, res) => {
@@ -52,7 +49,7 @@ router.post("/register", async (req, res) => {
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: "All fields required"
+        message: "All fields required",
       });
     }
 
@@ -62,7 +59,7 @@ router.post("/register", async (req, res) => {
     if (exists) {
       return res.status(409).json({
         success: false,
-        message: "User already exists"
+        message: "User already exists",
       });
     }
 
@@ -72,23 +69,21 @@ router.post("/register", async (req, res) => {
       password,
       role: "user",
       isVerified: false,
-      tokenVersion: 0
+      tokenVersion: 0,
     });
 
     return res.json({
       success: true,
-      message: "Registered successfully"
+      message: "Registered successfully",
     });
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({
       success: false,
-      message: "Registration failed"
+      message: "Registration failed",
     });
   }
 });
-
 
 // ================= SEND OTP =================
 router.post("/send-otp", async (req, res) => {
@@ -98,7 +93,7 @@ router.post("/send-otp", async (req, res) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: "Email required"
+        message: "Email required",
       });
     }
 
@@ -108,24 +103,26 @@ router.post("/send-otp", async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
+      });
+    }
+
+    // ⚡ prevent spam (basic protection)
+    const existingOtp = await OTP.findOne({ email });
+    if (existingOtp) {
+      return res.status(429).json({
+        success: false,
+        message: "OTP already sent. Try again later.",
       });
     }
 
     const otp = generateOTP();
 
-    // remove old OTPs
-    await OTP.deleteMany({ email });
-
-    // save new OTP
     await OTP.create({
       email,
       otp,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000) // FIXED
     });
 
-    // ================= FIXED MAIL SEND =================
     const mailResult = await sendMail({
       to: email,
       subject: "AlertAIQ OTP Verification",
@@ -136,37 +133,40 @@ router.post("/send-otp", async (req, res) => {
           <h1 style="color:#111">${otp}</h1>
           <p>Valid for 5 minutes</p>
         </div>
-      `
+      `,
     });
-
-    console.log("MAIL RESULT:", mailResult);
 
     if (!mailResult.success) {
       return res.status(500).json({
         success: false,
-        message: "Failed to send OTP email"
+        message: "Failed to send OTP email",
       });
     }
 
     return res.json({
       success: true,
-      message: "OTP sent successfully"
+      message: "OTP sent successfully",
     });
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({
       success: false,
-      message: "OTP failed"
+      message: "OTP failed",
     });
   }
 });
-
 
 // ================= VERIFY OTP =================
 router.post("/verify-otp", async (req, res) => {
   try {
     let { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP required",
+      });
+    }
 
     email = email.toLowerCase().trim();
 
@@ -175,42 +175,33 @@ router.post("/verify-otp", async (req, res) => {
     if (!record) {
       return res.status(400).json({
         success: false,
-        message: "OTP not found"
+        message: "OTP not found or expired",
       });
     }
 
-    if (record.otp != otp) {
+    // ⚡ strict check
+    if (record.otp !== otp) {
       return res.status(400).json({
         success: false,
-        message: "Invalid OTP"
-      });
-    }
-
-    if (Date.now() > record.expiresAt.getTime()) {
-      await OTP.deleteMany({ email });
-
-      return res.status(400).json({
-        success: false,
-        message: "OTP expired"
+        message: "Invalid OTP",
       });
     }
 
     await User.updateOne({ email }, { isVerified: true });
+
     await OTP.deleteMany({ email });
 
     const user = await User.findOne({ email });
 
     return sendAuthResponse(user, res, "OTP verified");
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({
       success: false,
-      message: "Verification failed"
+      message: "Verification failed",
     });
   }
 });
-
 
 // ================= LOGIN =================
 router.post("/login", async (req, res) => {
@@ -224,14 +215,14 @@ router.post("/login", async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
     if (!user.isVerified) {
       return res.status(403).json({
         success: false,
-        message: "Verify OTP first"
+        message: "Verify OTP first",
       });
     }
 
@@ -240,21 +231,19 @@ router.post("/login", async (req, res) => {
     if (!ok) {
       return res.status(400).json({
         success: false,
-        message: "Invalid password"
+        message: "Invalid password",
       });
     }
 
     return sendAuthResponse(user, res, "Login successful");
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({
       success: false,
-      message: "Login failed"
+      message: "Login failed",
     });
   }
 });
-
 
 // ================= ME =================
 router.get("/me", auth, async (req, res) => {
@@ -263,13 +252,12 @@ router.get("/me", auth, async (req, res) => {
 
     return res.json({
       success: true,
-      user
+      user,
     });
-
   } catch (err) {
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch user"
+      message: "Failed to fetch user",
     });
   }
 });
