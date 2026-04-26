@@ -26,9 +26,28 @@
         }
         #notification-panel.open { transform: translateX(0); }
         .timer-font { font-family: monospace; font-variant-numeric: tabular-nums; }
+        
+        /* Modal Transition */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.3s ease-out; }
     </style>
 </head>
 <body class="text-slate-900 overflow-x-hidden">
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logout-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[200] hidden items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 text-center scale-95 transition-transform duration-300" id="modal-content">
+            <div class="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
+                <i class="fas fa-sign-out-alt"></i>
+            </div>
+            <h3 class="text-2xl font-black text-slate-900 mb-2">Wait a moment!</h3>
+            <p class="text-slate-400 font-bold text-sm mb-8">Are you sure you want to exit the compliance hub?</p>
+            <div class="flex gap-3">
+                <button onclick="closeLogoutModal()" class="flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-slate-500 bg-slate-50 hover:bg-slate-100 transition-all">Cancel</button>
+                <button onclick="confirmLogout()" class="flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-white bg-rose-600 hover:bg-rose-700 shadow-xl shadow-rose-200 transition-all">Yes, Exit</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Notification Side Panel -->
     <div id="notification-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] hidden transition-opacity duration-300"></div>
@@ -69,10 +88,16 @@
             <button onclick="showTab('circulars')" id="btn-circulars" class="nav-btn px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all text-slate-400">Circulars</button>
         </div>
 
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
             <button onclick="toggleNotifications()" class="p-2.5 rounded-xl bg-slate-50 text-slate-600 border border-slate-100 relative hover:bg-indigo-600 hover:text-white transition-all">
                 <i class="fas fa-bell"></i>
                 <span class="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white animate-pulse"></span>
+            </button>
+            
+            <!-- Logout Button -->
+            <button onclick="openLogoutModal()" class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-600 hover:text-white transition-all font-black text-[10px] uppercase tracking-widest">
+                <i class="fas fa-power-off"></i>
+                <span class="hidden lg:inline">Logout</span>
             </button>
         </div>
     </nav>
@@ -333,6 +358,36 @@
             { name: 'PF & ESI Contribution', due: '2026-05-15T23:59:59', cat: 'LAB', icon: 'fa-users' }
         ];
 
+        // --- Logout Logic ---
+        function openLogoutModal() {
+            const modal = document.getElementById('logout-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                modal.style.opacity = '1';
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeLogoutModal() {
+            const modal = document.getElementById('logout-modal');
+            const content = document.getElementById('modal-content');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            modal.style.opacity = '0';
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        function confirmLogout() {
+            // Redirect to login.html as requested
+            window.location.href = 'login.html';
+        }
+
         // --- Notification Logic ---
         function toggleNotifications() {
             const panel = document.getElementById('notification-panel');
@@ -361,7 +416,8 @@
             const list = document.getElementById('notification-list');
             const sorted = [...deadlines].sort((a,b) => new Date(a.due) - new Date(b.due));
             
-            document.getElementById('live-time').innerText = new Date().toLocaleTimeString('en-IN', {hour12: true});
+            const liveTimeEl = document.getElementById('live-time');
+            if(liveTimeEl) liveTimeEl.innerText = new Date().toLocaleTimeString('en-IN', {hour12: true});
 
             list.innerHTML = sorted.map(item => {
                 const timer = getCountdown(item.due);
@@ -403,8 +459,10 @@
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.add('text-slate-400'));
             
             const activeBtn = document.getElementById(`btn-${tabId}`);
-            activeBtn.classList.add('tab-active');
-            activeBtn.classList.remove('text-slate-400');
+            if(activeBtn) {
+                activeBtn.classList.add('tab-active');
+                activeBtn.classList.remove('text-slate-400');
+            }
         }
 
         // Generator Logic
@@ -490,6 +548,7 @@
 
         function renderDeadlines() {
             const container = document.getElementById('deadline-container');
+            if(!container) return;
             // Show only first 3 on dashboard
             container.innerHTML = deadlines.slice(0, 3).map(dl => `
                 <div class="flex justify-between items-center p-5 bg-slate-50 rounded-2xl hover:shadow-lg transition-all border border-transparent hover:border-slate-100 cursor-pointer">
@@ -501,6 +560,7 @@
 
         function renderLedger(filter = "") {
             const tbody = document.querySelector('#ledger-table tbody');
+            if(!tbody) return;
             const filtered = ledgerData.filter(d => d.client.toLowerCase().includes(filter.toLowerCase()) || d.id.toLowerCase().includes(filter.toLowerCase()));
             tbody.innerHTML = filtered.map(row => `
                 <tr class="group hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
@@ -528,6 +588,7 @@
 
         function renderCirculars() {
             const container = document.getElementById('circular-container');
+            if(!container) return;
             container.innerHTML = circulars.map(c => `
                 <div class="group flex flex-col md:flex-row items-center justify-between p-8 bg-slate-50 rounded-[2.5rem] hover:bg-white hover:shadow-2xl transition-all border border-transparent hover:border-slate-100">
                     <div class="flex items-center gap-8 flex-1">
@@ -587,7 +648,8 @@
             renderAllDeadlines();
             setInterval(renderAllDeadlines, 1000);
             
-            document.getElementById('notification-overlay').onclick = toggleNotifications;
+            const overlay = document.getElementById('notification-overlay');
+            if(overlay) overlay.onclick = toggleNotifications;
         }
     </script>
 </body>
