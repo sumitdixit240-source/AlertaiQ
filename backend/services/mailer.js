@@ -16,26 +16,26 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 10000,
 });
 
-// ================= VERIFY =================
+// ================= VERIFY CONNECTION =================
 transporter.verify()
-  .then(() => console.log("✅ Mailer ready"))
-  .catch((err) => console.log("❌ Mailer error:", err.message));
+  .then(() => console.log("✅ Core.AI Mailer Ready"))
+  .catch((err) => console.log("❌ Mailer Error:", err.message));
 
-// ================= SAFE MAIL SENDER =================
-const sendMail = async (to, subject, html) => {
+// ================= CORE MAIL FUNCTION =================
+const sendMail = async ({ to, subject, html }) => {
   try {
     if (!to || !subject || !html) {
-      throw new Error("Missing email fields");
+      throw new Error("Missing email parameters");
     }
 
     const info = await transporter.sendMail({
-      from: `"AlertAIQ" <${process.env.EMAIL_USER}>`,
+      from: `"Core.AI Alerts ⚡" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       html,
     });
 
-    console.log("📩 Email sent:", info.messageId);
+    console.log(`📩 Mail Sent → ${to} | ID: ${info.messageId}`);
 
     return {
       success: true,
@@ -43,7 +43,7 @@ const sendMail = async (to, subject, html) => {
     };
 
   } catch (err) {
-    console.error("❌ Mail send failed:", err.message);
+    console.error("❌ Mail Send Failed:", err.message);
 
     return {
       success: false,
