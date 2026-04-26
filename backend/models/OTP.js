@@ -15,11 +15,28 @@ const otpSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ⏱ Auto-expire document after 5 minutes
+    // ⏱ Auto-expire document after 5 minutes (300 sec)
     createdAt: {
       type: Date,
       default: Date.now,
-      expires: 300,
+      expires: 300, // TTL index (ONLY place used)
+    },
+
+    // 🔐 Optional SaaS improvements
+    purpose: {
+      type: String,
+      enum: ["login", "signup", "reset"],
+      default: "login",
+    },
+
+    attempts: {
+      type: Number,
+      default: 0,
+    },
+
+    verified: {
+      type: Boolean,
+      default: false,
     },
   },
   {
@@ -27,10 +44,8 @@ const otpSchema = new mongoose.Schema(
   }
 );
 
-// 🔥 Index for faster email lookup
-otpSchema.index({ email: 1 });
-
-// 🔥 TTL index (backup explicit control as requested)
-otpSchema.index({ createdAt: 1 }, { expireAfterSeconds: 300 });
+// ⚠️ No extra indexes needed (avoid duplication)
+// email index already handled above
+// TTL handled by createdAt field only
 
 module.exports = mongoose.model("OTP", otpSchema);
