@@ -1,4 +1,4 @@
-const BASE = "https://alertaiq.onrender.com/api/nodes";
+const BASE = "https://alertaiq.onrender.com/api/nodes/create";
 
 // ======================
 // TOKEN
