@@ -4,14 +4,17 @@ const BASE = "https://alertaiq.onrender.com/api/nodes";
 // TOKEN
 // ======================
 function getToken() {
-    return localStorage.getItem("token");
+    const token = localStorage.getItem("token");
+    console.log("🔑 TOKEN:", token);
+    return token;
 }
 
 // ======================
-// HANDLE AUTH ERROR (IMPORTANT)
+// HANDLE AUTH ERROR
 // ======================
 function handleAuthError(res, data) {
     if (res.status === 401 || res.status === 403) {
+        console.warn("🚨 Auth error:", res.status, data);
         localStorage.removeItem("token");
         window.location.href = "index.html";
         return true;
@@ -20,9 +23,11 @@ function handleAuthError(res, data) {
 }
 
 // ======================
-// CREATE NODE
+// CREATE NODE (ONLY THIS VERSION)
 // ======================
 async function pushNodeToCloud(node) {
+    console.log("📤 Sending node:", node);
+
     try {
         const res = await fetch(`${BASE}/create`, {
             method: "POST",
@@ -30,23 +35,36 @@ async function pushNodeToCloud(node) {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${getToken()}`
             },
-            body: JSON.stringify(node)
+            body: JSON.stringify({
+                ...node,
+                expiryDate: new Date(node.expiryDate).toISOString()
+            })
         });
 
-        const data = await res.json();
+        console.log("📡 Status:", res.status);
+
+        let data;
+        try {
+            data = await res.json();
+        } catch {
+            throw new Error("Invalid JSON from server");
+        }
+
+        console.log("📦 Response:", data);
 
         if (handleAuthError(res, data)) return null;
 
         if (!res.ok) {
-            console.error("Create error:", data);
             throw new Error(data.message || data.error || "Create failed");
         }
 
-        // backend flexible response handling
-        return data.data || data.node || data._id || data.id || data;
+        console.log("✅ Node created successfully");
+
+        return data.data || data.node || data;
 
     } catch (err) {
-        console.error("Create network error:", err);
+        console.error("🔥 FULL ERROR:", err);
+        alert("Error: " + err.message); // shows real issue
         return null;
     }
 }
@@ -63,20 +81,19 @@ async function getNodesFromCloud() {
             }
         });
 
+        console.log("📡 Fetch status:", res.status);
+
         const data = await res.json();
+        console.log("📦 Nodes:", data);
 
         if (handleAuthError(res, data)) return [];
 
-        if (!res.ok) {
-            console.error("Fetch error:", data);
-            return [];
-        }
+        if (!res.ok) return [];
 
-        // SAFE BACKEND COMPATIBILITY
         return data.data || data.nodes || data.result || [];
 
     } catch (err) {
-        console.error("Fetch network error:", err);
+        console.error("🔥 Fetch error:", err);
         return [];
     }
 }
@@ -93,19 +110,19 @@ async function deleteNodeFromCloud(id) {
             }
         });
 
+        console.log("📡 Delete status:", res.status);
+
         const data = await res.json();
+        console.log("📦 Delete response:", data);
 
         if (handleAuthError(res, data)) return null;
 
-        if (!res.ok) {
-            console.error("Delete error:", data);
-            return null;
-        }
+        if (!res.ok) return null;
 
         return data.success ? true : data;
 
     } catch (err) {
-        console.error("Delete network error:", err);
+        console.error("🔥 Delete error:", err);
         return null;
     }
 }
