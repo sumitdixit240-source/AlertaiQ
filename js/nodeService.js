@@ -1,4 +1,4 @@
-const BASE = "https://alertai-q.vercel.app/api/nodes";
+const BASE = "https://alertaiq.onrender.com/api/nodes";
 
 // ======================
 // TOKEN
