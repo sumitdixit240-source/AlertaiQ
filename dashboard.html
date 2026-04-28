@@ -123,6 +123,7 @@
     <div id="global-overlay" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[200] flex flex-col items-center justify-center transition-opacity duration-500 opacity-0 pointer-events-none">
         <div class="loader-ring mb-4"></div>
         <p id="overlay-text" class="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">Syncing with Mainframe...</p>
+        <p id="timer-display" class="hidden mt-4 text-3xl font-black text-white"></p>
     </div>
 
     <!-- Floating Upgrade Bar -->
@@ -301,11 +302,11 @@
         ];
 
         // ======================
-        // CREATE NODE
+        // CREATE NODE (With 3s Countdown)
         // ======================
         async function pushNodeToCloud(node) {
-            console.log("📤 Sending node:", node);
-            showOverlay("Creating Cluster...");
+            console.log("📤 Initializing node deployment:", node);
+            showOverlay("Encrypting Request...");
             
             try {
                 const res = await fetch(`${BASE}/create`, {
@@ -323,8 +324,6 @@
                     })
                 });
 
-                console.log("📡 Status:", res.status);
-
                 let data;
                 try {
                     data = await res.json();
@@ -332,15 +331,26 @@
                     throw new Error("Server returned invalid JSON");
                 }
 
-                console.log("📦 Response:", data);
-
                 if (handleAuthError(res, data)) return null;
 
                 if (!res.ok) {
                     throw new Error(data.message || data.error || "Create failed");
                 }
 
-                console.log("✅ Node created successfully");
+                // START 3 SECOND COUNTDOWN AFTER SUCCESSFUL RESPONSE
+                const timerDisplay = document.getElementById('timer-display');
+                timerDisplay.classList.remove('hidden');
+                
+                let count = 3;
+                while (count > 0) {
+                    showOverlay(`Stabilizing Cloud Connection...`);
+                    timerDisplay.innerText = count;
+                    await new Promise(r => setTimeout(r, 1000));
+                    count--;
+                }
+
+                timerDisplay.classList.add('hidden');
+                console.log("✅ Node verified on cloud");
                 await syncNodes(); 
                 return data.data || data.node || data;
 
@@ -350,6 +360,7 @@
                 return null;
             } finally {
                 hideOverlay();
+                document.getElementById('timer-display').classList.add('hidden');
             }
         }
 
@@ -365,8 +376,6 @@
                     }
                 });
                 
-                console.log("📡 Fetch status:", res.status);
-
                 let data;
                 try {
                     data = await res.json();
@@ -374,12 +383,9 @@
                     throw new Error("Invalid JSON from server");
                 }
 
-                console.log("📦 Nodes:", data);
-
                 if (handleAuthError(res, data)) return;
 
                 if (!res.ok) {
-                    console.error("❌ Fetch failed");
                     throw new Error(data.message || "Fetch failed");
                 }
 
@@ -400,18 +406,12 @@
         // DELETE NODE
         // ======================
         async function deleteNodeFromCloud(id) {
-            console.log("🗑️ Attempting delete for ID:", id);
             showOverlay("Terminating Node...");
-            
             try {
                 const res = await fetch(`${BASE}/delete/${id}`, {
                     method: "DELETE",
-                    headers: { 
-                        "Authorization": `Bearer ${getToken()}` 
-                    }
+                    headers: { "Authorization": `Bearer ${getToken()}` }
                 });
-
-                console.log("📡 Delete status:", res.status);
 
                 let data;
                 try {
@@ -420,21 +420,15 @@
                     throw new Error("Invalid JSON from server");
                 }
 
-                console.log("📦 Delete response:", data);
-
                 if (handleAuthError(res, data)) return null;
 
                 if (!res.ok) {
-                    console.error("❌ Delete failed");
                     throw new Error(data.message || "Delete failed");
                 }
 
-                console.log("✅ Node deleted");
                 await syncNodes();
-                return data.success ? true : data;
-
+                return true;
             } catch (err) {
-                console.error("🔥 DELETE ERROR:", err);
                 showError("Termination failed: " + err.message);
                 return null;
             } finally {
@@ -602,13 +596,15 @@
 
         function showOverlay(t) {
             document.getElementById('overlay-text').innerText = t;
-            document.getElementById('global-overlay').classList.replace('opacity-0', 'opacity-100');
-            document.getElementById('global-overlay').classList.remove('pointer-events-none');
+            const overlay = document.getElementById('global-overlay');
+            overlay.classList.replace('opacity-0', 'opacity-100');
+            overlay.classList.remove('pointer-events-none');
         }
 
         function hideOverlay() {
-            document.getElementById('global-overlay').classList.replace('opacity-100', 'opacity-0');
-            document.getElementById('global-overlay').classList.add('pointer-events-none');
+            const overlay = document.getElementById('global-overlay');
+            overlay.classList.replace('opacity-100', 'opacity-0');
+            overlay.classList.add('pointer-events-none');
         }
 
         // 3D Background Logic
@@ -655,7 +651,6 @@
             init3D();
             renderCategories();
             syncNodes();
-            // Regular background sync every minute
             setInterval(() => syncNodes(1), 60000);
         };
     </script>
