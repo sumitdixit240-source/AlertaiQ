@@ -132,7 +132,7 @@
 
     <!-- Floating Upgrade Bar -->
     <div id="pro-banner" class="w-full flex justify-center pt-4 sticky top-0 z-[100] px-4 pointer-events-none">
-        <a href="others.html" class="pointer-events-auto floating-pro-btn px-6 py-2.5 rounded-full flex items-center gap-3 border border-white/20 shadow-2xl transition-all hover:brightness-110">
+        <a href="#" onclick="openPremiumModal()" class="pointer-events-auto floating-pro-btn px-6 py-2.5 rounded-full flex items-center gap-3 border border-white/20 shadow-2xl transition-all hover:brightness-110">
             <i class="fa-solid fa-bolt-lightning text-white text-xs"></i>
             <span class="text-[10px] font-black text-white uppercase tracking-[0.2em]">Upgrade to Pro Version</span>
             <i class="fa-solid fa-chevron-right text-white/50 text-[10px]"></i>
@@ -172,7 +172,7 @@
                 <h3 id="stat-capital" class="text-3xl font-black mt-1 text-indigo-400">₹0</h3>
             </div>
             <div class="glass p-6 rounded-[2rem] flex items-center justify-between">
-                <div>
+                <div id="network-container">
                     <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Network Status</p>
                     <h3 id="network-status-text" class="text-xl font-black mt-1 text-emerald-500 italic">SECURE</h3>
                 </div>
@@ -207,7 +207,7 @@
             </div>
             <div>
                 <h3 class="text-2xl font-black text-white tracking-tighter">Unlock Unlimited Nodes</h3>
-                <p class="text-slate-400 text-sm mt-2">You've reached the free limit of 2 clusters. Upgrade to Premium for just <span class="text-white font-bold">₹1</span> and unlock lifetime unlimited deployments.</p>
+                <p class="text-slate-400 text-sm mt-2">You've reached the free limit. Upgrade to Premium for just <span class="text-white font-bold">₹1</span> and unlock lifetime unlimited deployments.</p>
             </div>
             <ul class="text-left space-y-3 px-4">
                 <li class="flex items-center gap-3 text-[10px] font-bold text-slate-300 uppercase tracking-widest">
@@ -268,9 +268,11 @@
     </div>
 
     <script type="module">
-        // ALIGNED BASE URL - Ensuring correct path for Node Manager
-        const BASE = "https://alertai-q.vercel.app/api/nodes"; 
-        
+        // ======================
+        // BASE URL (CORRECT)
+        // ======================
+        const BASE = "https://alertaiq.onrender.com/api/nodes";
+
         function getToken() { return localStorage.getItem("token"); }
         function isPremium() { return localStorage.getItem("isPremium") === "true"; }
 
@@ -295,31 +297,34 @@
         ];
 
         // ======================
-        // BACKEND SYNC (REPAIRED)
+        // BACKEND SYNC (REFINED)
         // ======================
-        async function syncNodes(retries = 3) {
+        async function syncNodes(retries = 2) {
             try {
                 const res = await fetch(`${BASE}/all`, {
                     method: "GET",
                     headers: { "Authorization": `Bearer ${getToken()}` }
                 });
                 
-                if (res.status === 404 || res.status >= 500) throw new Error("Server Outage");
+                if (!res.ok) {
+                    if (res.status === 404 || res.status >= 500) throw new Error("Server Response Error");
+                    const data = await res.json();
+                    if (handleAuthError(res, data)) return;
+                    throw new Error(data.message || "Fetch failed");
+                }
 
                 const data = await res.json();
-                if (handleAuthError(res, data)) return;
-
-                if (res.ok) {
-                    activeNodes = data.data || data.nodes || data.result || [];
-                    setNetworkStatus(true);
-                    renderUI();
-                } else {
-                    showError(data.message || "Fetch failed");
-                }
+                activeNodes = data.data || data.nodes || data.result || [];
+                setNetworkStatus(true);
+                renderUI();
             } catch (err) {
-                if (retries > 0) return setTimeout(() => syncNodes(retries - 1), 2000);
-                setNetworkStatus(false);
-                showError("Network Outage: Unable to sync clusters");
+                console.error("Sync error:", err);
+                if (retries > 0) {
+                    setTimeout(() => syncNodes(retries - 1), 2000);
+                } else {
+                    setNetworkStatus(false);
+                    // Avoid disruptive alerts during background sync
+                }
             }
         }
 
@@ -332,10 +337,16 @@
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${getToken()}`
                     },
-                    body: JSON.stringify(node)
+                    body: JSON.stringify({
+                        title: node.title,
+                        category: node.category,
+                        frequency: node.frequency,
+                        amount: Number(node.amount),
+                        expiryDate: new Date(node.expiryDate).toISOString()
+                    })
                 });
-                const data = await res.json();
 
+                const data = await res.json();
                 if (handleAuthError(res, data)) return null;
 
                 if (res.ok) {
@@ -346,8 +357,7 @@
                     return null;
                 }
             } catch (err) {
-                setNetworkStatus(false);
-                showError("Network Outage: Deployment failed");
+                showError("Connection failed. Check network status.");
                 return null;
             } finally {
                 hideOverlay();
@@ -371,7 +381,7 @@
                     showError(data.message || "Termination failed");
                 }
             } catch (err) {
-                showError("Network Outage: Connection Interrupted");
+                showError("Network Error: Could not delete node.");
             } finally {
                 hideOverlay();
             }
@@ -385,25 +395,25 @@
                 text.className = "text-xl font-black mt-1 text-emerald-500 italic";
                 icon.className = "fa-solid fa-shield-halved text-emerald-500 text-2xl";
             } else {
-                text.innerText = "OUTAGE";
+                text.innerText = "OFFLINE";
                 text.className = "text-xl font-black mt-1 text-red-500 italic";
                 icon.className = "fa-solid fa-triangle-exclamation text-red-500 text-2xl";
             }
         }
 
         // ======================
-        // PAYMENT & UI
+        // UI & HANDLERS
         // ======================
         window.handlePayment = () => {
             const options = {
-                "key": "rzp_test_yourkeyhere", 
+                "key": "rzp_test_yourkey", 
                 "amount": "100", 
                 "currency": "INR",
                 "name": "AlertaiQ Premium",
                 "description": "Unlock Lifetime Unlimited Nodes",
                 "handler": async function (response) {
                     try {
-                        const res = await fetch("https://alertai-q.vercel.app/api/payment/verify", {
+                        const res = await fetch("https://alertaiq.onrender.com/api/payment/verify", {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
@@ -418,11 +428,9 @@
                             closePremiumModal();
                             showOverlay("Premium Activated 🚀");
                             setTimeout(hideOverlay, 2000);
-                        } else {
-                            showError("Verification failed");
                         }
                     } catch (e) {
-                        showError("Payment sync failed");
+                        showError("Payment verification failed");
                     }
                 }
             };
@@ -483,8 +491,8 @@
             document.getElementById('stat-capital').innerText = `₹${total.toLocaleString()}`;
             
             if(isPremium()) {
-                document.getElementById('premium-badge').classList.remove('hidden');
-                document.getElementById('pro-banner').classList.add('hidden');
+                document.getElementById('premium-badge')?.classList.remove('hidden');
+                document.getElementById('pro-banner')?.classList.add('hidden');
             }
         }
 
@@ -498,7 +506,6 @@
             const sub = document.getElementById('title');
             sub.innerHTML = sector.services.map(s => `<option value="${s}">${s}</option>`).join('');
             
-            // Set default date to today + 1 year
             const future = new Date();
             future.setFullYear(future.getFullYear() + 1);
             document.getElementById('expiryDate').value = future.toISOString().slice(0, 16);
@@ -507,7 +514,12 @@
         };
 
         window.closeModal = () => document.getElementById('modal').classList.add('hidden');
-        window.handleDelete = async (id) => { if (confirm("Terminate Connection?")) await deleteNodeFromCloud(id); };
+        
+        window.handleDelete = async (id) => { 
+            if (confirm("Terminate Cloud Connection for this node?")) {
+                await deleteNodeFromCloud(id);
+            }
+        };
 
         document.getElementById('entity-form').onsubmit = async (e) => {
             e.preventDefault();
@@ -515,7 +527,7 @@
                 title: document.getElementById('title').value,
                 category: selectedCategory.name,
                 frequency: document.getElementById('frequency').value,
-                amount: Number(document.getElementById('amount').value) || 500,
+                amount: document.getElementById('amount').value,
                 expiryDate: document.getElementById('expiryDate').value
             };
             const result = await pushNodeToCloud(node);
@@ -530,7 +542,7 @@
         function showError(msg) {
             const toast = document.getElementById('error-toast');
             toast.innerText = msg; toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; }, 5000);
+            setTimeout(() => { toast.style.display = 'none'; }, 4000);
         }
 
         function showOverlay(t) {
@@ -544,6 +556,7 @@
             document.getElementById('global-overlay').classList.add('pointer-events-none');
         }
 
+        // 3D Background Logic
         function init3D() {
             const canvas = document.getElementById('bg-canvas');
             const scene = new THREE.Scene();
@@ -587,7 +600,8 @@
             init3D();
             renderCategories();
             syncNodes();
-            setInterval(renderUI, 60000);
+            // Regular background sync every minute
+            setInterval(() => syncNodes(1), 60000);
         };
     </script>
 </body>
