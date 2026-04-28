@@ -1,4 +1,7 @@
-const BASE = "https://alertaiq.onrender.com/api/nodes/create";
+// ======================
+// BASE URL (CORRECT)
+// ======================
+const BASE = "https://alertaiq.onrender.com/api/nodes";
 
 // ======================
 // TOKEN
@@ -23,7 +26,7 @@ function handleAuthError(res, data) {
 }
 
 // ======================
-// CREATE NODE (ONLY THIS VERSION)
+// CREATE NODE
 // ======================
 async function pushNodeToCloud(node) {
     console.log("📤 Sending node:", node);
@@ -36,7 +39,10 @@ async function pushNodeToCloud(node) {
                 "Authorization": `Bearer ${getToken()}`
             },
             body: JSON.stringify({
-                ...node,
+                title: node.title,
+                category: node.category,
+                frequency: node.frequency,
+                amount: Number(node.amount),
                 expiryDate: new Date(node.expiryDate).toISOString()
             })
         });
@@ -47,7 +53,7 @@ async function pushNodeToCloud(node) {
         try {
             data = await res.json();
         } catch {
-            throw new Error("Invalid JSON from server");
+            throw new Error("Server returned invalid JSON");
         }
 
         console.log("📦 Response:", data);
@@ -59,12 +65,11 @@ async function pushNodeToCloud(node) {
         }
 
         console.log("✅ Node created successfully");
-
         return data.data || data.node || data;
 
     } catch (err) {
-        console.error("🔥 FULL ERROR:", err);
-        alert("Error: " + err.message); // shows real issue
+        console.error("🔥 CREATE ERROR:", err);
+        alert("Error: " + err.message);
         return null;
     }
 }
@@ -83,17 +88,26 @@ async function getNodesFromCloud() {
 
         console.log("📡 Fetch status:", res.status);
 
-        const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch {
+            throw new Error("Invalid JSON from server");
+        }
+
         console.log("📦 Nodes:", data);
 
         if (handleAuthError(res, data)) return [];
 
-        if (!res.ok) return [];
+        if (!res.ok) {
+            console.error("❌ Fetch failed");
+            return [];
+        }
 
         return data.data || data.nodes || data.result || [];
 
     } catch (err) {
-        console.error("🔥 Fetch error:", err);
+        console.error("🔥 FETCH ERROR:", err);
         return [];
     }
 }
@@ -112,17 +126,27 @@ async function deleteNodeFromCloud(id) {
 
         console.log("📡 Delete status:", res.status);
 
-        const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch {
+            throw new Error("Invalid JSON from server");
+        }
+
         console.log("📦 Delete response:", data);
 
         if (handleAuthError(res, data)) return null;
 
-        if (!res.ok) return null;
+        if (!res.ok) {
+            console.error("❌ Delete failed");
+            return null;
+        }
 
+        console.log("🗑️ Node deleted");
         return data.success ? true : data;
 
     } catch (err) {
-        console.error("🔥 Delete error:", err);
+        console.error("🔥 DELETE ERROR:", err);
         return null;
     }
 }
