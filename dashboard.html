@@ -90,11 +90,6 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .sector-card {
-            min-width: 130px;
-            flex-shrink: 0;
-        }
-
         .error-toast {
             position: fixed;
             bottom: 24px;
@@ -269,15 +264,24 @@
 
     <script type="module">
         // ======================
-        // BASE URL (CORRECT)
+        // BASE URL & UTILS
         // ======================
         const BASE = "https://alertaiq.onrender.com/api/nodes";
 
-        function getToken() { return localStorage.getItem("token"); }
+        function getToken() { 
+            const token = localStorage.getItem("token");
+            console.log("🔑 TOKEN:", token);
+            return token;
+        }
+
         function isPremium() { return localStorage.getItem("isPremium") === "true"; }
 
+        // ======================
+        // HANDLE AUTH ERROR
+        // ======================
         function handleAuthError(res, data) {
             if (res.status === 401 || res.status === 403) {
+                console.warn("🚨 Auth error:", res.status, data);
                 localStorage.removeItem("token");
                 window.location.href = "index.html";
                 return true;
@@ -297,39 +301,12 @@
         ];
 
         // ======================
-        // BACKEND SYNC (REFINED)
+        // CREATE NODE
         // ======================
-        async function syncNodes(retries = 2) {
-            try {
-                const res = await fetch(`${BASE}/all`, {
-                    method: "GET",
-                    headers: { "Authorization": `Bearer ${getToken()}` }
-                });
-                
-                if (!res.ok) {
-                    if (res.status === 404 || res.status >= 500) throw new Error("Server Response Error");
-                    const data = await res.json();
-                    if (handleAuthError(res, data)) return;
-                    throw new Error(data.message || "Fetch failed");
-                }
-
-                const data = await res.json();
-                activeNodes = data.data || data.nodes || data.result || [];
-                setNetworkStatus(true);
-                renderUI();
-            } catch (err) {
-                console.error("Sync error:", err);
-                if (retries > 0) {
-                    setTimeout(() => syncNodes(retries - 1), 2000);
-                } else {
-                    setNetworkStatus(false);
-                    // Avoid disruptive alerts during background sync
-                }
-            }
-        }
-
         async function pushNodeToCloud(node) {
+            console.log("📤 Sending node:", node);
             showOverlay("Creating Cluster...");
+            
             try {
                 const res = await fetch(`${BASE}/create`, {
                     method: "POST",
@@ -346,47 +323,128 @@
                     })
                 });
 
-                const data = await res.json();
+                console.log("📡 Status:", res.status);
+
+                let data;
+                try {
+                    data = await res.json();
+                } catch {
+                    throw new Error("Server returned invalid JSON");
+                }
+
+                console.log("📦 Response:", data);
+
                 if (handleAuthError(res, data)) return null;
 
-                if (res.ok) {
-                    await syncNodes(); 
-                    return true;
-                } else {
-                    showError(data.message || data.error || "Deployment failed");
-                    return null;
+                if (!res.ok) {
+                    throw new Error(data.message || data.error || "Create failed");
                 }
+
+                console.log("✅ Node created successfully");
+                await syncNodes(); 
+                return data.data || data.node || data;
+
             } catch (err) {
-                showError("Connection failed. Check network status.");
+                console.error("🔥 CREATE ERROR:", err);
+                showError("Deployment Error: " + err.message);
                 return null;
             } finally {
                 hideOverlay();
             }
         }
 
-        async function deleteNodeFromCloud(id) {
-            showOverlay("Terminating Node...");
+        // ======================
+        // GET ALL NODES
+        // ======================
+        async function syncNodes(retries = 2) {
             try {
-                const res = await fetch(`${BASE}/delete/${id}`, {
-                    method: "DELETE",
-                    headers: { "Authorization": `Bearer ${getToken()}` }
+                const res = await fetch(`${BASE}/all`, {
+                    method: "GET",
+                    headers: { 
+                        "Authorization": `Bearer ${getToken()}` 
+                    }
                 });
-                const data = await res.json();
+                
+                console.log("📡 Fetch status:", res.status);
+
+                let data;
+                try {
+                    data = await res.json();
+                } catch {
+                    throw new Error("Invalid JSON from server");
+                }
+
+                console.log("📦 Nodes:", data);
 
                 if (handleAuthError(res, data)) return;
 
-                if (res.ok) {
-                    await syncNodes();
-                } else {
-                    showError(data.message || "Termination failed");
+                if (!res.ok) {
+                    console.error("❌ Fetch failed");
+                    throw new Error(data.message || "Fetch failed");
                 }
+
+                activeNodes = data.data || data.nodes || data.result || [];
+                setNetworkStatus(true);
+                renderUI();
             } catch (err) {
-                showError("Network Error: Could not delete node.");
+                console.error("🔥 FETCH ERROR:", err);
+                if (retries > 0) {
+                    setTimeout(() => syncNodes(retries - 1), 2000);
+                } else {
+                    setNetworkStatus(false);
+                }
+            }
+        }
+
+        // ======================
+        // DELETE NODE
+        // ======================
+        async function deleteNodeFromCloud(id) {
+            console.log("🗑️ Attempting delete for ID:", id);
+            showOverlay("Terminating Node...");
+            
+            try {
+                const res = await fetch(`${BASE}/delete/${id}`, {
+                    method: "DELETE",
+                    headers: { 
+                        "Authorization": `Bearer ${getToken()}` 
+                    }
+                });
+
+                console.log("📡 Delete status:", res.status);
+
+                let data;
+                try {
+                    data = await res.json();
+                } catch {
+                    throw new Error("Invalid JSON from server");
+                }
+
+                console.log("📦 Delete response:", data);
+
+                if (handleAuthError(res, data)) return null;
+
+                if (!res.ok) {
+                    console.error("❌ Delete failed");
+                    throw new Error(data.message || "Delete failed");
+                }
+
+                console.log("✅ Node deleted");
+                await syncNodes();
+                return data.success ? true : data;
+
+            } catch (err) {
+                console.error("🔥 DELETE ERROR:", err);
+                showError("Termination failed: " + err.message);
+                return null;
             } finally {
                 hideOverlay();
             }
         }
 
+        // ======================
+        // UI HELPERS
+        // ======================
         function setNetworkStatus(isSecure) {
             const text = document.getElementById('network-status-text');
             const icon = document.getElementById('network-status-icon');
@@ -401,9 +459,6 @@
             }
         }
 
-        // ======================
-        // UI & HANDLERS
-        // ======================
         window.handlePayment = () => {
             const options = {
                 "key": "rzp_test_yourkey", 
