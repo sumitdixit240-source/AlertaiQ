@@ -1,6 +1,6 @@
-import express from "express";
-import auth from "../middleware/auth.js";        // 🔐 JWT middleware
-import AiLog from "../models/AiLog.js";          // 💾 Model to store per-user data
+const express = require("express");
+const auth = require("../middleware/authMiddleware");
+const AiLog = require("../models/AiLog");
 
 const router = express.Router();
 
@@ -24,13 +24,11 @@ router.post("/generate", auth, async (req, res) => {
             });
         }
 
-        // 🔐 Get logged-in user ID
-        const userId = req.user.id;
+        // ✅ FIX: auth middleware gives ONLY ID (not object)
+        const userId = req.user;
 
-        // 🤖 Fake AI response (replace later with real AI)
         const response = `AI Response for: ${prompt}`;
 
-        // 💾 Save data with userId (THIS IS USER ISOLATION)
         await AiLog.create({
             userId,
             prompt,
@@ -44,6 +42,7 @@ router.post("/generate", auth, async (req, res) => {
 
     } catch (error) {
         console.error("AI Error:", error.message);
+
         res.status(500).json({
             success: false,
             message: "AI processing failed"
@@ -54,8 +53,8 @@ router.post("/generate", auth, async (req, res) => {
 // ================= GET USER HISTORY =================
 router.get("/history", auth, async (req, res) => {
     try {
-        const logs = await AiLog.find({ userId: req.user.id })
-                               .sort({ createdAt: -1 });
+        const logs = await AiLog.find({ userId: req.user })
+            .sort({ createdAt: -1 });
 
         res.json({
             success: true,
@@ -63,6 +62,8 @@ router.get("/history", auth, async (req, res) => {
         });
 
     } catch (error) {
+        console.error("History Error:", error.message);
+
         res.status(500).json({
             success: false,
             message: "Error fetching history"
@@ -70,4 +71,4 @@ router.get("/history", auth, async (req, res) => {
     }
 });
 
-export default router;
+module.exports = router;
