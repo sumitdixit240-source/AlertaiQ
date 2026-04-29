@@ -1,8 +1,8 @@
 import express from "express";
 import crypto from "crypto";
+
 import auth from "../middleware/auth.js";
-import Payment from "../models/Payment.js";
-import User from "../models/User.js"; // ✅ IMPORTANT (for premium flag)
+import Payment from "../models/Payment.js"; // ✅ CREATE THIS MODEL
 
 let Razorpay;
 try {
@@ -16,7 +16,11 @@ const router = express.Router();
 // ================= INIT =================
 let razorpay = null;
 
-if (Razorpay && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+if (
+    Razorpay &&
+    process.env.RAZORPAY_KEY_ID &&
+    process.env.RAZORPAY_KEY_SECRET
+) {
     razorpay = new Razorpay({
         key_id: process.env.RAZORPAY_KEY_ID,
         key_secret: process.env.RAZORPAY_KEY_SECRET
@@ -27,10 +31,12 @@ if (Razorpay && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) 
 router.get("/", auth, (req, res) => {
     res.json({
         success: true,
-        message: "AlertaiQ Payment API running 🚀",
+        message: "Payment route working 🚀",
+        user: req.user.id,
         razorpay: !!razorpay
     });
 });
+
 
 // ================= CREATE ORDER =================
 router.post("/create-order", auth, async (req, res) => {
@@ -42,38 +48,46 @@ router.post("/create-order", auth, async (req, res) => {
             });
         }
 
-        // FIXED PREMIUM PRICE = ₹1
-        const amount = 1;
+        const { amount } = req.body;
+
+        if (!amount || amount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid amount is required"
+            });
+        }
 
         const options = {
-            amount: amount * 100, // paise
+            amount: Math.round(amount * 100),
             currency: "INR",
-            receipt: `alertaiq_${req.user.id}_${Date.now()}`,
+            receipt: `user_${req.user.id}_${Date.now()}`, // 🔐 bind to user
             payment_capture: 1
         };
 
         const order = await razorpay.orders.create(options);
 
+        // 🔐 STORE ORDER WITH USER
         await Payment.create({
             userId: req.user.id,
             orderId: order.id,
-            amount,
+            amount: amount,
             status: "created"
         });
 
-        res.json({
+        return res.status(200).json({
             success: true,
             order
         });
 
     } catch (error) {
         console.error("Create Order Error:", error.message);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: "Order creation failed"
+            message: "Failed to create order"
         });
     }
 });
+
 
 // ================= VERIFY PAYMENT =================
 router.post("/verify", auth, async (req, res) => {
@@ -91,7 +105,7 @@ router.post("/verify", auth, async (req, res) => {
             razorpay_signature
         } = req.body;
 
-        // 🔐 FIND PAYMENT
+        // 🔐 FIND ORDER FOR THIS USER ONLY
         const payment = await Payment.findOne({
             orderId: razorpay_order_id,
             userId: req.user.id
@@ -100,11 +114,11 @@ router.post("/verify", auth, async (req, res) => {
         if (!payment) {
             return res.status(404).json({
                 success: false,
-                message: "Payment record not found"
+                message: "Order not found"
             });
         }
 
-        // 🔐 SIGNATURE VALIDATION
+        // 🔐 SIGNATURE VERIFY
         const body = `${razorpay_order_id}|${razorpay_payment_id}`;
 
         const expectedSignature = crypto
@@ -113,35 +127,28 @@ router.post("/verify", auth, async (req, res) => {
             .digest("hex");
 
         if (expectedSignature !== razorpay_signature) {
-            payment.status = "failed";
-            await payment.save();
-
             return res.status(400).json({
                 success: false,
                 message: "Invalid signature"
             });
         }
 
-        // 🔥 SUCCESS PAYMENT
+        // 🔐 UPDATE ONLY THIS USER'S PAYMENT
         payment.paymentId = razorpay_payment_id;
         payment.status = "paid";
+
         await payment.save();
 
-        // 🔥 GIVE PREMIUM ACCESS
-        await User.findByIdAndUpdate(req.user.id, {
-            isPremium: true
-        });
-
-        res.json({
+        return res.status(200).json({
             success: true,
-            message: "Payment verified + Premium activated 🚀"
+            message: "Payment verified successfully"
         });
 
     } catch (error) {
         console.error("Verify Payment Error:", error.message);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: "Verification failed"
+            message: "Payment verification failed"
         });
     }
 });
