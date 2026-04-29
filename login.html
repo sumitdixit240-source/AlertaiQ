@@ -211,7 +211,6 @@
 <div class="grid-overlay"></div>
 <div id="glow" class="glow-cursor"></div>
 
-<!-- Custom Message Box for System Notifications -->
 <div id="msg-box" class="glass-card px-5 py-4 flex items-center gap-4 border-l-4 border-indigo-500">
     <div class="w-8 h-8 bg-indigo-500/10 rounded-full flex items-center justify-center flex-shrink-0">
         <i class="fas fa-shield-check text-indigo-500 text-sm"></i>
@@ -407,31 +406,33 @@ const BACKEND_URL = "https://alertaiq.onrender.com";
 let isLoading = false;
 
 /**
- * SAFE FETCH WRAPPER
- * ✅ FIX: Automatically sends Bearer token for all requests (e.g. for /api/auth/me)
- * ✅ FIX: Automatically handles 401 Unauthorized for protected routes.
+ * 🚀 2. SAFE FETCH (FIXED + DEBUG ENABLED)
  */
 async function safeFetch(url, options = {}) {
-    const token = localStorage.getItem("token");
-    
-    // Prepare headers
-    const headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        ...(options.headers || {})
-    };
-
-    // ✅ ADDED: Inject Authorization header if token exists
-    if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-    }
-
-    const config = { ...options, headers };
-
     try {
-        const res = await fetch(url, config);
-        
-        // ✅ ADDED: Global handler for expired or invalid tokens
+        console.log("➡ API CALL:", url);
+
+        const token = localStorage.getItem("token");
+        const headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            ...(options.headers || {})
+        };
+
+        // Inject Authorization header if token exists
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const res = await fetch(url, {
+            method: options.method || "GET",
+            headers: headers,
+            body: options.body ? JSON.stringify(options.body) : undefined,
+        });
+
+        console.log("⬅ STATUS:", res.status);
+
+        // Global handler for expired or invalid tokens
         if (res.status === 401 && !url.includes('/login') && !url.includes('/register') && !url.includes('/verify-otp')) {
             Auth.logout();
             throw new Error("Session expired. Please log in again.");
@@ -450,8 +451,10 @@ async function safeFetch(url, options = {}) {
         }
 
         return data;
+
     } catch (err) {
-        throw new Error(err.message || "Network link failure");
+        console.error("❌ FETCH ERROR:", err.message);
+        throw err;
     }
 }
 
@@ -574,7 +577,7 @@ const Auth = {
                 if (UI.step === 'idle') {
                     await safeFetch(`${BACKEND_URL}/api/auth/send-otp`, {
                         method: "POST",
-                        body: JSON.stringify({ email })
+                        body: { email }
                     });
                     UI.step = 'otp_sent';
                     UI.hideVerification();
@@ -586,10 +589,9 @@ const Auth = {
 
                 const data = await safeFetch(`${BACKEND_URL}/api/auth/verify-otp`, {
                     method: "POST",
-                    body: JSON.stringify({ email, otp })
+                    body: { email, otp }
                 });
 
-                // ✅ FIX: Reset OTP Flow state after success
                 UI.step = 'idle';
                 document.getElementById('otp-group').classList.add('hidden');
                 document.getElementById('main-btn').innerText = 'Unlock Dashboard';
@@ -600,7 +602,7 @@ const Auth = {
 
             const data = await safeFetch(`${BACKEND_URL}/api/auth/login`, {
                 method: "POST",
-                body: JSON.stringify({ email, password })
+                body: { email, password }
             });
             this.saveSession(data.token);
 
@@ -626,7 +628,7 @@ const Auth = {
         try {
             await safeFetch(`${BACKEND_URL}/api/auth/register`, {
                 method: "POST",
-                body: JSON.stringify({ name, email, password })
+                body: { name, email, password }
             });
             UI.notify("✅ Account Created! Please Login.");
             setTimeout(() => UI.showLogin(), 2000);
@@ -643,7 +645,6 @@ const Auth = {
             localStorage.setItem("token", token);
             localStorage.setItem("token_time", Date.now());
             UI.showSuccess();
-            // ✅ Redirect to dashboard instead of location.reload()
             setTimeout(() => {
                 window.location.href = "dashboard.html";
             }, 1500);
@@ -657,31 +658,36 @@ const Auth = {
     },
 
     /**
-     * ✅ PROTECTED ROUTE CALL
-     * Uses safeFetch which now correctly injects the Authorization header.
+     * 🚀 3. FIXED SYNC PROFILE
      */
     async syncProfile() {
-        if (!localStorage.getItem("token")) return;
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
         try {
             const user = await safeFetch(`${BACKEND_URL}/api/auth/me`);
             UI.updateAuthUI(user);
         } catch (e) {
-            console.error("Profile sync failed", e);
+            console.error("❌ Profile sync failed:", e.message);
         }
     }
 };
 
+/**
+ * 🚀 4. SAFE PAGE LOAD LOGIC
+ */
 window.addEventListener("load", () => {
     const token = localStorage.getItem("token");
     const time = localStorage.getItem("token_time");
 
-    if (token && time) {
-        const expired = Date.now() - parseInt(time) > 7 * 24 * 60 * 60 * 1000;
-        if (expired) {
-            Auth.logout();
-        } else {
-            Auth.syncProfile();
-        }
+    if (!token || !time) return;
+
+    const expired = Date.now() - parseInt(time) > 7 * 24 * 60 * 60 * 1000;
+
+    if (expired) {
+        Auth.logout();
+    } else {
+        Auth.syncProfile();
     }
 });
 
