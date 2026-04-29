@@ -1,26 +1,31 @@
 const nodemailer = require("nodemailer");
 
-// ================= VALIDATE ENV =================
-if (!process.env.EMAIL || !process.env.EMAIL_PASS) {
+// ================= DEBUG ENV (SAFE CHECK) =================
+const EMAIL = process.env.EMAIL;
+const EMAIL_PASS = process.env.EMAIL_PASS;
+
+if (!EMAIL || !EMAIL_PASS) {
   console.error("❌ EMAIL credentials missing in environment variables");
+  console.error("EMAIL:", EMAIL);
+  console.error("EMAIL_PASS exists:", !!EMAIL_PASS);
 }
 
 // ================= TRANSPORTER =================
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
-  secure: true, // SSL
+  secure: true,
   auth: {
-    user: process.env.EMAIL,
-    pass: process.env.EMAIL_PASS,
+    user: EMAIL,
+    pass: EMAIL_PASS,
   },
   tls: {
     rejectUnauthorized: false,
   },
 });
 
-// ================= VERIFY CONNECTION =================
-transporter.verify((error, success) => {
+// ================= VERIFY SMTP =================
+transporter.verify((error) => {
   if (error) {
     console.error("❌ Mail Server Error:", error.message);
   } else {
@@ -35,8 +40,12 @@ const sendEmail = async (to, subject, html) => {
       throw new Error("Missing email parameters");
     }
 
+    if (!EMAIL || !EMAIL_PASS) {
+      throw new Error("Missing EMAIL config in environment variables");
+    }
+
     const info = await transporter.sendMail({
-      from: `"AlertaiQ" <${process.env.EMAIL}>`,
+      from: `"AlertaiQ" <${EMAIL}>`,
       to,
       subject,
       html,
