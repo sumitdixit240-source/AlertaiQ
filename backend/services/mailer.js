@@ -1,55 +1,25 @@
 const nodemailer = require("nodemailer");
 
-// ================= TRANSPORT =================
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // Gmail App Password
+    user: process.env.EMAIL,
+    pass: process.env.EMAIL_PASS,
   },
-  tls: {
-    rejectUnauthorized: false,
-  },
-  connectionTimeout: 10000,
-  socketTimeout: 10000,
 });
 
-// ================= VERIFY =================
-transporter.verify()
-  .then(() => console.log("✅ Mailer ready"))
-  .catch((err) => console.log("❌ Mailer error:", err.message));
-
-// ================= SAFE MAIL SENDER =================
-const sendMail = async (to, subject, html) => {
+const sendEmail = async (to, subject, html) => {
   try {
-    if (!to || !subject || !html) {
-      throw new Error("Missing email fields");
-    }
-
-    const info = await transporter.sendMail({
-      from: `"AlertAIQ" <${process.env.EMAIL_USER}>`,
+    await transporter.sendMail({
+      from: `"AlertaiQ" <${process.env.EMAIL}>`,
       to,
       subject,
       html,
     });
-
-    console.log("📩 Email sent:", info.messageId);
-
-    return {
-      success: true,
-      messageId: info.messageId,
-    };
-
+    console.log("📧 Email Sent");
   } catch (err) {
-    console.error("❌ Mail send failed:", err.message);
-
-    return {
-      success: false,
-      error: err.message,
-    };
+    console.error("Email Error:", err.message);
   }
 };
 
-module.exports = sendMail;
+module.exports = sendEmail;
