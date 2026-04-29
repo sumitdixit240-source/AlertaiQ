@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Alert = require("../models/Alert");
-const auth = require("../middleware/auth");
+const auth = require("../middleware/authMiddleware");
 const sendEmail = require("../services/mailer");
 
 // ✅ CREATE NODE
