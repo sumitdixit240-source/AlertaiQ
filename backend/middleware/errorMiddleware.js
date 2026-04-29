@@ -1,8 +1,17 @@
 module.exports = (err, req, res, next) => {
-  console.error(err.stack);
+  console.error("❌ Error Stack:", err.stack || err.message);
 
-  res.status(err.status || 500).json({
+  // default status
+  const statusCode = err.status || 500;
+
+  // avoid leaking internal errors in production
+  const message =
+    process.env.NODE_ENV === "production"
+      ? "Something went wrong"
+      : err.message;
+
+  res.status(statusCode).json({
     success: false,
-    message: err.message || "Server Error",
+    message,
   });
 };
