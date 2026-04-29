@@ -7,7 +7,6 @@ const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const mongoSanitize = require("express-mongo-sanitize");
-const xss = require("xss-clean");
 
 const connectDB = require("./config/db");
 
@@ -69,8 +68,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ================= SANITIZATION =================
+// FIX: removed xss-clean (caused Render crash)
 app.use(mongoSanitize());
-app.use(xss());
 
 // ================= SOCKET.IO =================
 const io = socketIo(server, {
@@ -140,7 +139,9 @@ app.use(errorMiddleware);
 // ================= START SERVER =================
 async function startServer() {
   try {
+    console.log("🔄 Connecting to DB...");
     await connectDB();
+    console.log("✅ DB Connected");
 
     const PORT = process.env.PORT || 5000;
 
