@@ -25,7 +25,7 @@ require("./services/crons");
 const app = express();
 const server = http.createServer(app);
 
-// ================= TRUST PROXY (RENDER FIX) =================
+// ================= TRUST PROXY =================
 app.set("trust proxy", 1);
 
 // ================= SECURITY HEADERS =================
@@ -35,42 +35,42 @@ app.use(
   })
 );
 
-// ================= CORS (SAFE + DEBUG FRIENDLY) =================
-const allowedOrigins = new Set([
-  "https://alertai-q.vercel.app",
-  "http://127.0.0.1:5500",
-  "http://localhost:5500",
-]);
+// ================= CORS (PRODUCTION FIXED) =================
+const allowedOrigins = [
+  "https://alertai-q.vercel.app"
+];
 
 app.use(
   cors({
-    origin: (origin, callback) => {
+    origin: function (origin, callback) {
       if (!origin) return callback(null, true);
 
-      if (allowedOrigins.has(origin)) {
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      console.warn("🚫 CORS BLOCKED:", origin);
-      return callback(new Error("Not allowed by CORS"));
+      console.log("🚫 CORS BLOCKED:", origin);
+      return callback(null, false);
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// ================= HANDLE CORS ERRORS =================
-app.use((err, req, res, next) => {
-  if (err.message === "Not allowed by CORS") {
-    return res.status(403).json({
-      success: false,
-      message: "CORS blocked this request",
-    });
-  }
-  next(err);
+// ================= GLOBAL HEADERS (IMPORTANT FIX) =================
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://alertai-q.vercel.app");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  next();
 });
 
-// ================= PRE-FLIGHT =================
-app.options("*", cors());
+// ================= PRE-FLIGHT FIX =================
+app.options("*", (req, res) => {
+  res.sendStatus(200);
+});
 
 // ================= BODY PARSER =================
 app.use(express.json({ limit: "10kb" }));
@@ -80,26 +80,27 @@ app.use(express.urlencoded({ extended: true }));
 app.use(mongoSanitize());
 
 // ================= RATE LIMIT =================
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+app.use(
+  "/api",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+  })
+);
 
-const authLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: "Too many login attempts, try again later",
-});
-
-app.use("/api", apiLimiter);
-app.use("/api/auth", authLimiter);
+app.use(
+  "/api/auth",
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    message: "Too many requests, try again later",
+  })
+);
 
 // ================= SOCKET.IO =================
 const io = socketIo(server, {
   cors: {
-    origin: Array.from(allowedOrigins),
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -110,7 +111,7 @@ io.on("connection", (socket) => {
   console.log("⚡ Socket Connected:", socket.id);
 
   socket.on("join", (userId) => {
-    if (typeof userId === "string" && userId.length > 0) {
+    if (typeof userId === "string") {
       socket.join(userId);
     }
   });
@@ -120,7 +121,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// ================= REQUEST LOGGER =================
+// ================= LOGGER =================
 app.use((req, res, next) => {
   console.log(`➡ ${req.method} ${req.originalUrl}`);
   next();
@@ -143,7 +144,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// ================= 404 HANDLER =================
+// ================= 404 =================
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -151,16 +152,14 @@ app.use((req, res) => {
   });
 });
 
-// ================= GLOBAL ERROR HANDLER =================
+// ================= ERROR HANDLER =================
 app.use(errorMiddleware);
 
-// ================= START SERVER SAFELY =================
+// ================= START SERVER =================
 async function startServer() {
   try {
     console.log("🔄 Connecting to DB...");
-
     await connectDB();
-
     console.log("✅ DB Connected");
 
     const PORT = process.env.PORT || 5000;
@@ -168,19 +167,19 @@ async function startServer() {
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log("🔐 Security Layer Active");
-      console.log("🌍 CORS Protected");
+      console.log("🌍 CORS Fixed for Production");
     });
 
-    // Graceful shutdown (important for Render)
+    // Graceful shutdown (Render safe)
     process.on("SIGTERM", () => {
-      console.log("🛑 SIGTERM received. Shutting down gracefully...");
+      console.log("🛑 SIGTERM received...");
       server.close(() => {
         process.exit(0);
       });
     });
 
   } catch (err) {
-    console.error("❌ CRITICAL STARTUP ERROR:", err.message);
+    console.error("❌ SERVER ERROR:", err.message);
     process.exit(1);
   }
 }
