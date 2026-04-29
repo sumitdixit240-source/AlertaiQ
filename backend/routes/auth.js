@@ -1,198 +1,157 @@
 const express = require("express");
-const jwt = require("jsonwebtoken");
-
-const User = require("../models/User");
-const OTP = require("../models/OTP");
-const sendMail = require("../services/mailer");
-const generateOTP = require("../utils/generateOTP");
-const auth = require("../middleware/auth");
-
 const router = express.Router();
 
-// ================= TOKEN =================
-const createToken = (user) => {
-  return jwt.sign(
-    {
-      id: user._id,
-      email: user.email,
-      role: user.role,
-      tokenVersion: user.tokenVersion,
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
-};
+const Alert = require("../models/Alert");
+const OTP = require("../models/OTP");
+const sendMail = require("../services/mailer");
+const auth = require("../middleware/auth");
 
-// ================= AUTH RESPONSE (FIXED FOR FRONTEND) =================
-const sendAuthResponse = (user, res, message = "Success") => {
-  const token = createToken(user);
 
-  return res.json({
+// ================= HEALTH CHECK =================
+router.get("/", auth, (req, res) => {
+  res.json({
     success: true,
-    message,
-    token,              // 🔥 IMPORTANT (FLAT)
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    },
+    message: "Alert system active 🚀",
+    user: req.user.id
   });
-};
+});
 
-//
-// ================= REGISTER =================
-//
-router.post("/register", async (req, res) => {
+
+// ================= CREATE ALERT =================
+router.post(["/create", "/add"], auth, async (req, res) => {
   try {
-    let { name, email, password } = req.body || {};
+    const { title, message, description } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ success: false, message: "All fields required" });
+    if (!title && !message && !description) {
+      return res.status(400).json({
+        success: false,
+        message: "Title or message required"
+      });
     }
 
-    email = email.toLowerCase().trim();
+    const alert = await Alert.create({
+      userId: req.user.id,
+      title: title || "No Title",
+      message: message || description || ""
+    });
 
-    const exists = await User.findOne({ email });
-    if (exists) {
-      return res.status(409).json({ success: false, message: "User already exists" });
-    }
+    res.json({
+      success: true,
+      message: "Alert created",
+      data: alert
+    });
 
-    await User.create({
-      name,
+  } catch (err) {
+    console.error("CREATE ALERT ERROR:", err.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create alert"
+    });
+  }
+});
+
+
+// ================= GET USER ALERTS =================
+router.get(["/my", "/list"], auth, async (req, res) => {
+  try {
+    const alerts = await Alert.find({
+      userId: req.user.id
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: alerts
+    });
+
+  } catch (err) {
+    console.error("GET ALERTS ERROR:", err.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch alerts"
+    });
+  }
+});
+
+
+// ================= SEND OTP (SECURE VERSION) =================
+router.post("/send-otp", auth, async (req, res) => {
+  try {
+    const email = req.user.email;
+
+    // 🔥 Prevent OTP spam (delete old first)
+    await OTP.deleteMany({ userId: req.user.id });
+
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 min
+
+    await OTP.create({
       email,
-      password,
-      role: "user",
-      tokenVersion: 0,
-      isVerified: false,
+      otp,
+      userId: req.user.id,
+      createdAt: new Date(),
+      expiresAt
     });
 
-    return res.json({
+    await sendMail(
+      email,
+      "RenewAI OTP Verification",
+      `<h2>Your OTP is: ${otp}</h2><p>Valid for 5 minutes</p>`
+    );
+
+    res.json({
       success: true,
-      message: "Registered successfully",
+      message: "OTP sent successfully"
     });
 
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: "Registration failed" });
+    console.error("SEND OTP ERROR:", err.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to send OTP"
+    });
   }
 });
 
-//
-// ================= SEND OTP =================
-//
-router.post("/send-otp", async (req, res) => {
+
+// ================= VERIFY OTP (SECURE VERSION) =================
+router.post("/verify-otp", auth, async (req, res) => {
   try {
-    let { email } = req.body;
+    const { otp } = req.body;
 
-    if (!email) {
-      return res.status(400).json({ success: false, message: "Email required" });
-    }
-
-    email = email.toLowerCase().trim();
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    const otp = generateOTP();
-
-    await OTP.deleteMany({ email });
-    await OTP.create({ email, otp });
-
-    await sendMail(email, "Core.AI OTP", `<h2>OTP: ${otp}</h2>`);
-
-    return res.json({
-      success: true,
-      message: "OTP sent",
+    const record = await OTP.findOne({
+      userId: req.user.id,
+      otp: Number(otp)
     });
 
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: "OTP failed" });
-  }
-});
-
-//
-// ================= VERIFY OTP =================
-//
-router.post("/verify-otp", async (req, res) => {
-  try {
-    let { email, otp } = req.body;
-
-    email = email.toLowerCase().trim();
-
-    const record = await OTP.findOne({ email });
     if (!record) {
-      return res.status(400).json({ success: false, message: "OTP not found" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP"
+      });
     }
 
-    if (record.otp !== otp) {
-      return res.status(400).json({ success: false, message: "Invalid OTP" });
+    // ⛔ expiry check
+    if (record.expiresAt && Date.now() > record.expiresAt) {
+      await OTP.deleteMany({ userId: req.user.id });
+      return res.status(400).json({
+        success: false,
+        message: "OTP expired"
+      });
     }
 
-    await User.updateOne({ email }, { isVerified: true });
-    await OTP.deleteMany({ email });
+    await OTP.deleteMany({ userId: req.user.id });
 
-    const user = await User.findOne({ email });
-
-    return sendAuthResponse(user, res, "OTP verified");
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: "Verification failed" });
-  }
-});
-
-//
-// ================= LOGIN (FIXED MAIN ISSUE) =================
-//
-router.post("/login", async (req, res) => {
-  try {
-    let { email, password } = req.body;
-
-    email = email.toLowerCase().trim();
-
-    const user = await User.findOne({ email }).select("+password");
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    if (!user.isVerified) {
-      return res.status(403).json({ success: false, message: "Verify OTP first" });
-    }
-
-    const ok = await user.comparePassword(password);
-
-    if (!ok) {
-      return res.status(400).json({ success: false, message: "Invalid password" });
-    }
-
-    // 🔥 FIX: direct token return
-    return sendAuthResponse(user, res, "Login successful");
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: "Login failed" });
-  }
-});
-
-//
-// ================= ME =================
-//
-router.get("/me", auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select("-password");
-
-    return res.json({
+    res.json({
       success: true,
-      user,
+      message: "OTP verified successfully"
     });
 
   } catch (err) {
-    return res.status(500).json({ success: false, message: "Failed to fetch user" });
+    console.error("VERIFY OTP ERROR:", err.message);
+    res.status(500).json({
+      success: false,
+      error: "OTP verification failed"
+    });
   }
 });
 
