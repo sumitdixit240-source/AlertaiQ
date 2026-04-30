@@ -15,11 +15,11 @@ const otpSchema = new mongoose.Schema(
       required: true,
     },
 
-    // OTP creation time (TTL controlled here)
+    // ⏱ TTL EXPIRY (5 minutes)
     createdAt: {
       type: Date,
       default: Date.now,
-      expires: 300, // auto delete after 5 minutes
+      expires: 300, // 5 minutes auto-delete
     },
   },
   {
@@ -27,7 +27,7 @@ const otpSchema = new mongoose.Schema(
   }
 );
 
-// Fast lookup index
+// 🚀 Fast lookup index
 otpSchema.index({ email: 1 });
 
 module.exports = mongoose.model("OTP", otpSchema);
