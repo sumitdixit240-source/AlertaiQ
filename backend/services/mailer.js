@@ -5,11 +5,11 @@ if (!process.env.EMAIL || !process.env.EMAIL_PASS) {
   console.error("❌ EMAIL credentials missing in environment variables");
 }
 
-// ================= TRANSPORTER (ROBUST VERSION) =================
+// ================= TRANSPORTER (ROBUST + GMAIL SAFE) =================
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 587,              // FIX: better for cloud servers
-  secure: false,          // FIX: use STARTTLS
+  port: 587,              // STARTTLS (best for Render/Cloud/VPS)
+  secure: false,          // must be false for port 587
 
   auth: {
     user: process.env.EMAIL,
@@ -20,22 +20,23 @@ const transporter = nodemailer.createTransport({
     rejectUnauthorized: false,
   },
 
-  connectionTimeout: 10000,
-  socketTimeout: 10000,
+  connectionTimeout: 15000,
+  socketTimeout: 15000,
 });
 
-// ================= VERIFY =================
+// ================= VERIFY SMTP =================
 transporter.verify((error) => {
   if (error) {
     console.error("❌ Mail Server Error:", error.message);
   } else {
-    console.log("📧 Mail Server Ready");
+    console.log("📧 Mail Server Ready - SMTP Connected");
   }
 });
 
-// ================= SEND EMAIL =================
+// ================= SEND EMAIL FUNCTION =================
 const sendMail = async (to, subject, html) => {
   try {
+    // basic validation
     if (!to || !subject || !html) {
       throw new Error("Missing email parameters");
     }
@@ -47,9 +48,9 @@ const sendMail = async (to, subject, html) => {
       html,
     });
 
-    console.log("📧 OTP Email Sent:", info.messageId);
-
+    console.log("📧 Email Sent Successfully:", info.messageId);
     return true;
+
   } catch (err) {
     console.error("❌ Email Error:", err.message);
     return false;
