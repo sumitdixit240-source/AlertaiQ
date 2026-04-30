@@ -7,8 +7,7 @@
 
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "lint": "echo \"No lint configured\""
+    "dev": "nodemon server.js"
   },
 
   "engines": {
