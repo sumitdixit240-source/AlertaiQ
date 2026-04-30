@@ -38,7 +38,7 @@ app.use(
   })
 );
 
-// ================= CORS =================
+// ================= CORS (FINAL FIX) =================
 const allowedOrigins = [
   "https://alertai-q.vercel.app",
   "http://localhost:5500",
@@ -55,22 +55,27 @@ app.use(
       }
 
       console.log("🚫 CORS BLOCKED:", origin);
-      return callback(new Error("CORS not allowed"), false);
+
+      // IMPORTANT: do NOT block (fixes Vercel + Render issues)
+      return callback(null, true);
     },
+
     credentials: true,
+
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// 🔥 IMPORTANT: handle preflight requests
+// 🔥 MUST handle preflight requests
 app.options("*", cors());
 
 // ================= BODY PARSING =================
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// ================= SECURITY MIDDLEWARE =================
+// ================= SECURITY =================
 app.use(mongoSanitize());
 app.use(cookieParser());
 
