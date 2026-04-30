@@ -28,7 +28,7 @@ const server = http.createServer(app);
 
 app.set("trust proxy", 1);
 
-// ================= DB =================
+// ================= DATABASE =================
 connectDB();
 
 // ================= SECURITY =================
@@ -38,7 +38,7 @@ app.use(
   })
 );
 
-// ================= CORS (FIXED) =================
+// ================= CORS =================
 const allowedOrigins = [
   "https://alertai-q.vercel.app",
   "http://localhost:5500",
@@ -50,48 +50,41 @@ app.use(
     origin: function (origin, callback) {
       if (!origin) return callback(null, true);
 
-      if (
-        allowedOrigins.includes(origin) ||
-        origin.endsWith("vercel.app") ||
-        origin.includes("localhost") ||
-        origin.includes("127.0.0.1")
-      ) {
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
       console.log("🚫 CORS BLOCKED:", origin);
       return callback(new Error("CORS not allowed"), false);
     },
-
     credentials: true,
-
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Cookie",
-    ],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// 🔥 IMPORTANT: handle preflight requests
+app.options("*", cors());
 
 // ================= BODY PARSING =================
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// ================= SECURITY =================
+// ================= SECURITY MIDDLEWARE =================
 app.use(mongoSanitize());
 app.use(cookieParser());
 
-// ================= REQUEST TIMEOUT SAFETY =================
+// ================= REQUEST TIMEOUT =================
 app.use((req, res, next) => {
   res.setTimeout(15000, () => {
-    console.log("⏰ Timeout:", req.originalUrl);
+    console.log("⏰ Request Timeout:", req.originalUrl);
+
     res.status(408).json({
       success: false,
       message: "Request timeout",
     });
   });
+
   next();
 });
 
