@@ -1,4 +1,9 @@
-const BASE = "https://alertai-q.vercel.app/api/nodes";
+// ======================
+// BASE CONFIG
+// ======================
+const API_BASE = "http://localhost:5000/api"; 
+// 👉 PRODUCTION: replace with your backend URL
+// const API_BASE = "https://your-backend.onrender.com/api";
 
 // ======================
 // TOKEN
@@ -8,9 +13,9 @@ function getToken() {
 }
 
 // ======================
-// HANDLE AUTH ERROR (IMPORTANT)
+// AUTH HANDLER
 // ======================
-function handleAuthError(res, data) {
+function handleAuthError(res) {
     if (res.status === 401 || res.status === 403) {
         localStorage.removeItem("token");
         window.location.href = "index.html";
@@ -20,30 +25,29 @@ function handleAuthError(res, data) {
 }
 
 // ======================
-// CREATE NODE
+// CREATE NODE (ALERT)
 // ======================
-async function pushNodeToCloud(node) {
+async function createNode(nodeData) {
     try {
-        const res = await fetch(`${BASE}/create`, {
+        const res = await fetch(`${API_BASE}/alerts`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${getToken()}`
+                "Authorization": getToken()
             },
-            body: JSON.stringify(node)
+            body: JSON.stringify(nodeData)
         });
 
         const data = await res.json();
 
-        if (handleAuthError(res, data)) return null;
+        if (handleAuthError(res)) return null;
 
         if (!res.ok) {
             console.error("Create error:", data);
-            throw new Error(data.message || data.error || "Create failed");
+            throw new Error(data.msg || "Create failed");
         }
 
-        // backend flexible response handling
-        return data.data || data.node || data._id || data.id || data;
+        return data;
 
     } catch (err) {
         console.error("Create network error:", err);
@@ -54,26 +58,25 @@ async function pushNodeToCloud(node) {
 // ======================
 // GET ALL NODES
 // ======================
-async function getNodesFromCloud() {
+async function getNodes() {
     try {
-        const res = await fetch(`${BASE}/all`, {
+        const res = await fetch(`${API_BASE}/alerts`, {
             method: "GET",
             headers: {
-                "Authorization": `Bearer ${getToken()}`
+                "Authorization": getToken()
             }
         });
 
         const data = await res.json();
 
-        if (handleAuthError(res, data)) return [];
+        if (handleAuthError(res)) return [];
 
         if (!res.ok) {
             console.error("Fetch error:", data);
             return [];
         }
 
-        // SAFE BACKEND COMPATIBILITY
-        return data.data || data.nodes || data.result || [];
+        return Array.isArray(data) ? data : (data.alerts || data.data || []);
 
     } catch (err) {
         console.error("Fetch network error:", err);
@@ -84,28 +87,84 @@ async function getNodesFromCloud() {
 // ======================
 // DELETE NODE
 // ======================
-async function deleteNodeFromCloud(id) {
+async function deleteNode(id) {
     try {
-        const res = await fetch(`${BASE}/delete/${id}`, {
+        const res = await fetch(`${API_BASE}/alerts/${id}`, {
             method: "DELETE",
             headers: {
-                "Authorization": `Bearer ${getToken()}`
+                "Authorization": getToken()
             }
         });
 
         const data = await res.json();
 
-        if (handleAuthError(res, data)) return null;
+        if (handleAuthError(res)) return false;
 
         if (!res.ok) {
             console.error("Delete error:", data);
-            return null;
+            return false;
         }
 
-        return data.success ? true : data;
+        return data.success === true;
 
     } catch (err) {
         console.error("Delete network error:", err);
+        return false;
+    }
+}
+
+// ======================
+// CREATE PAYMENT ORDER (RAZORPAY)
+// ======================
+async function createPaymentOrder(freq) {
+    try {
+        const res = await fetch(`${API_BASE}/payment/create-order`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": getToken()
+            },
+            body: JSON.stringify({ freq })
+        });
+
+        const data = await res.json();
+
+        if (handleAuthError(res)) return null;
+
+        if (!res.ok) {
+            throw new Error(data.message || "Payment order failed");
+        }
+
+        return data;
+
+    } catch (err) {
+        console.error("Payment order error:", err);
         return null;
+    }
+}
+
+// ======================
+// VERIFY PAYMENT
+// ======================
+async function verifyPayment(paymentData) {
+    try {
+        const res = await fetch(`${API_BASE}/payment/verify`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": getToken()
+            },
+            body: JSON.stringify(paymentData)
+        });
+
+        const data = await res.json();
+
+        if (handleAuthError(res)) return false;
+
+        return data.success === true;
+
+    } catch (err) {
+        console.error("Payment verify error:", err);
+        return false;
     }
 }
