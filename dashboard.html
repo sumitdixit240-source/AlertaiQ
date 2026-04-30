@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono&display=swap');
         
         :root {
             --bg-dark: #0a0c14;
@@ -65,11 +65,6 @@
             margin-left: 5px;
             font-weight: 800;
         }
-        
-        .timer-badge {
-            font-family: 'JetBrains Mono', monospace;
-            letter-spacing: -0.5px;
-        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -80,7 +75,7 @@
             <i class="fas fa-bolt text-white text-xl"></i>
         </div>
         <div class="flex-grow"></div>
-        <button onclick="promptLogout()" title="Logout" class="mt-auto w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center">
+        <button onclick="handleLogout()" title="Logout" class="mt-auto w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center">
             <i class="fas fa-sign-out-alt"></i>
         </button>
     </aside>
@@ -97,7 +92,7 @@
             </div>
 
             <div class="flex items-center gap-4">
-                <button onclick="toggleUpgradeModal(true)" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-orange-500/20 flex items-center gap-2">
+                <button onclick="showNotification('Premium features coming soon!', 'info')" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-orange-500/20 flex items-center gap-2">
                     <i class="fas fa-crown"></i> Go Premium
                 </button>
                 <button onclick="openCreateModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20">
@@ -133,9 +128,9 @@
                 <div class="glass p-5 rounded-3xl">
                     <div class="flex justify-between mb-2">
                         <span class="text-[10px] font-black uppercase text-slate-500">Engine Status</span>
-                        <i class="fas fa-envelope text-blue-400"></i>
+                        <i class="fas fa-satellite-dish text-blue-400"></i>
                     </div>
-                    <div class="text-2xl font-bold text-white">Active</div>
+                    <div class="text-2xl font-bold text-white">Online</div>
                 </div>
             </div>
 
@@ -237,23 +232,17 @@
                             <input type="radio" name="frequency" value="Yearly" class="accent-indigo-500">
                             <span class="text-[10px]">Yearly</span>
                         </label>
-                        <!-- Premium options -->
-                        <div id="freq-box-weekly" onclick="initiateRazorpay('Weekly')">
+                        
+                        <div id="freq-box-weekly" onclick="handlePaymentInitiate('Weekly')">
                             <label class="flex items-center gap-3 p-2 glass rounded-xl border border-white/5 opacity-50 cursor-pointer group">
                                 <input type="radio" name="frequency" value="Weekly" disabled class="accent-indigo-500 pointer-events-none">
                                 <span class="text-[10px]">Weekly <span class="locked-badge group-hover:bg-amber-400 transition-colors">UNLOCK VIA RAZORPAY</span></span>
                             </label>
                         </div>
-                        <div id="freq-box-daily" onclick="initiateRazorpay('Daily')">
+                        <div id="freq-box-daily" onclick="handlePaymentInitiate('Daily')">
                             <label class="flex items-center gap-3 p-2 glass rounded-xl border border-white/5 opacity-50 cursor-pointer group">
                                 <input type="radio" name="frequency" value="Daily" disabled class="accent-indigo-500 pointer-events-none">
                                 <span class="text-[10px]">Daily <span class="locked-badge group-hover:bg-amber-400 transition-colors">UNLOCK VIA RAZORPAY</span></span>
-                            </label>
-                        </div>
-                        <div id="freq-box-hourly" onclick="initiateRazorpay('Hourly')">
-                            <label class="flex items-center gap-3 p-2 glass rounded-xl border border-white/5 opacity-50 cursor-pointer group">
-                                <input type="radio" name="frequency" value="Hourly" disabled class="accent-indigo-500 pointer-events-none">
-                                <span class="text-[10px]">Hourly <span class="locked-badge group-hover:bg-amber-400 transition-colors">UNLOCK VIA RAZORPAY</span></span>
                             </label>
                         </div>
                     </div>
@@ -275,34 +264,52 @@
     <!-- Notification Zone -->
     <div id="notification-zone" class="fixed bottom-8 right-8 z-[200] w-96 space-y-4"></div>
 
+    <!-- Scripts -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
-        const API = "https://alertaiq.onrender.com/api";
-
-        const SECTORS_DATA = {
-            "Streaming & Entertainment": ["Amazon Prime Video", "Disney+ Hotstar", "Netflix Premium", "YouTube Premium", "Spotify Family", "Apple Music", "Zee5", "SonyLIV", "JioCinema Pro", "Crunchyroll"],
-            "Mobile & Telecom": ["Jio Prepaid/Postpaid", "Airtel Fiber", "Vi Max", "BSNL Broadband", "Data Add-on Packs", "Roaming Services"],
-            "Utility Bills": ["Electricity (State Board)", "Piped Gas (IGL/MGL)", "Water Tax", "Municipal Property Tax", "Waste Management Fees"],
-            "Finance & Banking": ["Credit Card Dues", "Home Loan EMI", "Car Loan EMI", "Personal Loan", "Mutual Fund SIP", "Stock Portfolio Alerts"],
-            "Insurance Services": ["Life Insurance (LIC)", "Health Insurance", "Vehicle Insurance", "Term Insurance", "Home Insurance"],
-            "Education & Learning": ["School/College Fees", "Coursera/Udemy", "Skillshare", "Masterclass", "Educational Coaching", "Byju's Subscription"],
-            "Lifestyle & Health": ["Cult.fit Membership", "Gym Fees", "Apollo 24|7 Circle", "PharmEasy Plus", "SkinCare Subscriptions"],
-            "E-Commerce & Delivery": ["Amazon Prime Membership", "Flipkart VIP", "Zomato Gold", "Swiggy One", "BigBasket BBNow"],
-            "Gaming & Software": ["PlayStation Plus", "Xbox Game Pass", "Adobe Creative Cloud", "Microsoft 365", "ChatGPT Plus", "Canva Pro"],
-            "IT & Cloud Infrastructure": ["AWS Billing", "Google Cloud", "Azure Nodes", "Domain Renewals (GoDaddy)", "SaaS API Usage"],
-            "Transport & Travel": ["Fastag Recharge", "Metro Smart Card", "Uber Pass", "Ola Select", "Airline Loyalty Renewal"],
-            "Housing & Real Estate": ["Maintenance Charges", "House Rent", "Society Club Fees", "Security Service Dues"],
-            "News & Publications": ["The Hindu/TOI Digital", "Wall Street Journal", "Medium Membership", "Substack Newsletters"],
-            "Professional Services": ["LinkedIn Premium", "Legal Retainers", "Accounting Fees", "Freelance Tool Subs"],
-            "Charity & Giving": ["Monthly NGO Donation", "Patreon Support", "Temple/Church Tithe", "Ketto Fundraisers"],
-            "Pet Care": ["Vet Consultation", "Pet Food Subscription", "Dog Training Fees", "Pet Insurance"],
-            "Auto Maintenance": ["Vehicle Service Due", "RSA Membership", "EV Charging Credits", "Pollution (PUC) Alerts"],
-            "Home Improvement": ["RO Service AMC", "AC Maintenance", "Pest Control Schedule", "Gardening Service"],
-            "Security & Safety": ["CCTV Cloud Storage", "MyGate/NoBrokerHood", "Antivirus Renewal", "Safe Deposit Locker"],
-            "Gifting & Events": ["Birthday Reminders", "Anniversary Flowers", "Club Memberships", "Event Tickets (BookMyShow)"]
-        };
-
+        // ======================
+        // CONFIG & STATE
+        // ======================
+        const API_BASE = "https://alertaiq.onrender.com/api";
         let nodes = [];
 
+        const SECTORS_DATA = {
+            "Streaming & Entertainment": ["Netflix Premium", "Amazon Prime Video", "Disney+ Hotstar", "Spotify Family", "Apple Music", "YouTube Premium"],
+            "Mobile & Telecom": ["Jio Fiber", "Airtel Postpaid", "Vi Data Packs", "BSNL Broadband"],
+            "Utility Bills": ["Electricity State Board", "Piped Gas (IGL)", "Water Tax", "Municipal Tax"],
+            "Finance & Banking": ["Credit Card Dues", "Home Loan EMI", "Mutual Fund SIP", "Insurance Premium"],
+            "E-Commerce & Delivery": ["Amazon Prime", "Zomato Gold", "Swiggy One", "BigBasket BBNow"],
+            "Gaming & Software": ["Xbox Game Pass", "PS Plus", "Adobe Creative Cloud", "ChatGPT Plus", "Canva Pro"],
+            "IT & Cloud": ["AWS Usage", "Google Cloud Billing", "DigitalOcean Drops", "Domain Renewals"]
+        };
+
+        // ======================
+        // HELPERS
+        // ======================
+        const getToken = () => localStorage.getItem("token");
+        
+        const handleAuthError = (res) => {
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem("token");
+                window.location.href = "index.html"; // Adjust to your login page
+                return true;
+            }
+            return false;
+        };
+
+        const showNotification = (msg, type = 'success') => {
+            const zone = document.getElementById('notification-zone');
+            const toast = document.createElement('div');
+            const colorClass = type === 'error' ? 'border-rose-500 text-rose-500' : 'border-indigo-500 text-indigo-500';
+            toast.className = `glass success-toast p-4 rounded-2xl border-l-4 ${colorClass} flex items-center justify-between`;
+            toast.innerHTML = `<span class="text-sm font-bold">${msg}</span><i class="fas fa-times opacity-50 cursor-pointer" onclick="this.parentElement.remove()"></i>`;
+            zone.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        };
+
+        // ======================
+        // UI CORE
+        // ======================
         function updateClock() {
             const clockEl = document.getElementById('current-time-display');
             if (clockEl) clockEl.innerText = new Date().toLocaleString();
@@ -335,124 +342,129 @@
             }
         }
 
-        // --- BACKEND INTEGRATION ---
+        function handleLogout() {
+            localStorage.removeItem("token");
+            window.location.href = "index.html";
+        }
+
+        // ======================
+        // API INTEGRATIONS
+        // ======================
+        async function fetchNodes() {
+            try {
+                const res = await fetch(`${API_BASE}/alerts`, {
+                    headers: { "Authorization": getToken() }
+                });
+                if (handleAuthError(res)) return;
+                const data = await res.json();
+                nodes = Array.isArray(data) ? data : (data.alerts || []);
+                renderNodes();
+            } catch (err) {
+                console.error("Fetch error", err);
+            }
+        }
+
+        async function deleteNodeById(id) {
+            if(!confirm("Are you sure you want to terminate this node?")) return;
+            try {
+                const res = await fetch(`${API_BASE}/alerts/${id}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": getToken() }
+                });
+                if (handleAuthError(res)) return;
+                showNotification("Node decommissioned successfully");
+                fetchNodes();
+            } catch (err) {
+                showNotification("Failed to delete node", "error");
+            }
+        }
 
         document.getElementById("node-form").onsubmit = async (e) => {
             e.preventDefault();
-            const token = localStorage.getItem("token");
             const fd = new FormData(e.target);
+            const payload = Object.fromEntries(fd.entries());
 
-            const payload = {
-                nodeName: fd.get("nodeName"),
-                ownerName: fd.get("ownerName"),
-                amount: fd.get("amount"),
-                sector: fd.get("sector"),
-                subService: fd.get("subService"),
-                frequency: fd.get("frequency"),
-                expiryDate: fd.get("expiryDate"),
-                email: fd.get("email"),
-                notes: fd.get("notes")
-            };
+            try {
+                const res = await fetch(`${API_BASE}/alerts`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": getToken()
+                    },
+                    body: JSON.stringify(payload)
+                });
 
-            const res = await fetch(`${API}/alerts`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: token
-                },
-                body: JSON.stringify(payload)
-            });
+                if (handleAuthError(res)) return;
+                const data = await res.json();
 
-            const data = await res.json();
-
-            if (res.ok) {
-                alert("✅ Node created. Check your email.");
-                location.reload();
-            } else {
-                alert(data.msg || "Creation failed");
+                if (res.ok) {
+                    showNotification("Node deployed successfully");
+                    toggleModal(false);
+                    fetchNodes();
+                } else {
+                    showNotification(data.msg || "Deployment failed", "error");
+                }
+            } catch (err) {
+                showNotification("Network error", "error");
             }
         };
 
-        async function loadNodes() {
-            const token = localStorage.getItem("token");
-            if (!token) return;
-
+        // ======================
+        // PAYMENTS
+        // ======================
+        async function handlePaymentInitiate(freq) {
             try {
-                const res = await fetch(`${API}/alerts`, {
-                    headers: { Authorization: token }
+                const res = await fetch(`${API_BASE}/payment/create-order`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": getToken()
+                    },
+                    body: JSON.stringify({ freq })
                 });
+
                 const data = await res.json();
-                nodes = Array.isArray(data) ? data : [];
-                renderNodes();
+                if (handleAuthError(res)) return;
+
+                const options = {
+                    key: "YOUR_RAZORPAY_KEY", // Note: Usually handled by backend, but if needed here
+                    amount: data.order.amount,
+                    currency: "INR",
+                    name: "AlertaiQ",
+                    description: `Unlock ${freq} alerts`,
+                    order_id: data.order.id,
+                    handler: async function (response) {
+                        const vRes = await fetch(`${API_BASE}/payment/verify`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": getToken()
+                            },
+                            body: JSON.stringify({ ...response, freq })
+                        });
+                        const vData = await vRes.json();
+                        if (vData.success) {
+                            showNotification(`${freq} alerts unlocked!`);
+                            location.reload();
+                        }
+                    },
+                    theme: { color: "#6366f1" }
+                };
+                const rzp = new Razorpay(options);
+                rzp.open();
             } catch (err) {
-                console.error("Failed to load nodes", err);
+                showNotification("Payment initiation failed", "error");
             }
         }
 
-        // --- RAZORPAY INTEGRATION ---
-
-        async function initiateRazorpay(freq) {
-            const token = localStorage.getItem("token");
-
-            const res = await fetch(`${API}/payment/create-order`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: token
-                },
-                body: JSON.stringify({ freq })
-            });
-
-            const data = await res.json();
-
-            const options = {
-                key: "YOUR_RAZORPAY_KEY", // Replace with actual key
-                amount: data.order.amount,
-                currency: "INR",
-                name: "AlertaiQ",
-                description: `Unlock ${freq}`,
-                order_id: data.order.id,
-                handler: async function (response) {
-                    await verifyPayment(response, freq);
-                },
-                theme: { color: "#6366f1" }
-            };
-
-            const rzp = new Razorpay(options);
-            rzp.open();
-        }
-
-        async function verifyPayment(resData, freq) {
-            const token = localStorage.getItem("token");
-
-            const res = await fetch(`${API}/payment/verify`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: token
-                },
-                body: JSON.stringify({
-                    ...resData,
-                    freq
-                })
-            });
-
-            const data = await res.json();
-
-            if (data.success) {
-                alert("✅ Unlocked Successfully");
-                location.reload();
-            } else {
-                alert("Payment Verification Failed");
-            }
-        }
-
-        // --- RENDER LOGIC ---
-
+        // ======================
+        // RENDER LOGIC
+        // ======================
         function renderNodes() {
             const tableBody = document.getElementById('node-table-body');
             const emptyState = document.getElementById('empty-state');
             let totalAmt = 0;
+            let expiringCount = 0;
 
             const existingRows = tableBody.querySelectorAll('.node-row');
             existingRows.forEach(r => r.remove());
@@ -465,10 +477,17 @@
             }
 
             emptyState.style.display = 'none';
+            const now = new Date();
+
             nodes.forEach(node => {
                 totalAmt += parseFloat(node.amount || 0);
                 const expiry = new Date(node.expiryDate);
                 
+                // Check if expiring within 3 days
+                const diffTime = expiry - now;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays <= 3) expiringCount++;
+
                 const tr = document.createElement('tr');
                 tr.className = 'node-row';
                 tr.innerHTML = `
@@ -481,25 +500,43 @@
                         <div class="text-[10px] text-slate-500">${node.subService}</div>
                     </td>
                     <td class="px-6 py-4 text-emerald-400 font-bold">₹${node.amount}</td>
-                    <td class="px-6 py-4"><span class="text-[9px] font-black bg-indigo-500/10 px-2 py-1 rounded text-indigo-400 uppercase">${node.frequency}</span></td>
-                    <td class="px-6 py-4 text-xs text-slate-300 font-mono">${expiry.toLocaleDateString()}</td>
+                    <td class="px-6 py-4">
+                        <span class="text-[9px] font-black bg-indigo-500/10 px-2 py-1 rounded text-indigo-400 uppercase">
+                            ${node.frequency}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-xs ${diffDays <= 3 ? 'text-rose-400 font-bold' : 'text-slate-300'} font-mono">
+                            ${expiry.toLocaleDateString()}
+                        </div>
+                        <div class="text-[9px] text-slate-500">${diffDays} days left</div>
+                    </td>
                     <td class="px-6 py-4 text-right">
-                        <button class="text-slate-500 hover:text-white"><i class="fas fa-ellipsis-v"></i></button>
+                        <button onclick="deleteNodeById('${node._id}')" class="text-slate-500 hover:text-rose-500 transition-colors">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
                     </td>
                 `;
                 tableBody.appendChild(tr);
             });
 
             document.getElementById('stat-total').innerText = nodes.length;
+            document.getElementById('stat-alerts').innerText = expiringCount;
             document.getElementById('stat-spent').innerText = '₹' + totalAmt.toLocaleString();
         }
 
+        // ======================
+        // INIT
+        // ======================
         window.onload = () => {
+            if (!getToken()) {
+                window.location.href = "login.html"; // Redirect if no token
+                return;
+            }
             updateClock();
-            loadNodes();
             setInterval(updateClock, 1000);
+            fetchNodes();
         };
     </script>
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </body>
 </html>
