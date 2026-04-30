@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config(); // MUST BE FIRST
 
 const express = require("express");
 const http = require("http");
@@ -25,6 +25,12 @@ require("./services/crons");
 const app = express();
 const server = http.createServer(app);
 
+// ================= ENV DEBUG (IMPORTANT FOR OTP) =================
+console.log("📧 EMAIL CONFIG CHECK:");
+console.log("EMAIL:", process.env.EMAIL);
+console.log("EMAIL_PASS exists:", !!process.env.EMAIL_PASS);
+console.log("NODE_ENV:", process.env.NODE_ENV);
+
 // ================= TRUST PROXY =================
 app.set("trust proxy", 1);
 
@@ -35,9 +41,9 @@ app.use(
   })
 );
 
-// ================= CORS (PRODUCTION FIXED) =================
+// ================= CORS =================
 const allowedOrigins = [
-  "https://alertai-q.vercel.app"
+  "https://alertai-q.vercel.app",
 ];
 
 app.use(
@@ -58,7 +64,7 @@ app.use(
   })
 );
 
-// ================= GLOBAL HEADERS (IMPORTANT FIX) =================
+// ================= GLOBAL HEADERS =================
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "https://alertai-q.vercel.app");
   res.header("Access-Control-Allow-Credentials", "true");
@@ -67,12 +73,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// ================= PRE-FLIGHT FIX =================
+// ================= PRE-FLIGHT =================
 app.options("*", (req, res) => {
   res.sendStatus(200);
 });
 
-// ================= BODY PARSER =================
+// ================= BODY =================
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -121,7 +127,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// ================= LOGGER =================
+// ================= REQUEST LOGGER =================
 app.use((req, res, next) => {
   console.log(`➡ ${req.method} ${req.originalUrl}`);
   next();
@@ -142,6 +148,15 @@ app.get("/", (req, res) => {
     memory: process.memoryUsage().rss,
     time: new Date().toISOString(),
   });
+});
+
+// ================= GLOBAL ERROR DEBUG (IMPORTANT) =================
+process.on("unhandledRejection", (err) => {
+  console.error("❌ UNHANDLED REJECTION:", err.message);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("❌ UNCAUGHT EXCEPTION:", err.message);
 });
 
 // ================= 404 =================
@@ -167,15 +182,12 @@ async function startServer() {
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log("🔐 Security Layer Active");
-      console.log("🌍 CORS Fixed for Production");
+      console.log("🌍 Production Mode Ready");
     });
 
-    // Graceful shutdown (Render safe)
     process.on("SIGTERM", () => {
       console.log("🛑 SIGTERM received...");
-      server.close(() => {
-        process.exit(0);
-      });
+      server.close(() => process.exit(0));
     });
 
   } catch (err) {
