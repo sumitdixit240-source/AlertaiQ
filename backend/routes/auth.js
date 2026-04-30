@@ -45,12 +45,10 @@ const createToken = (user) => {
 
 //
 // ================= AUTH RESPONSE =================
-// ✅ FIXED: sends token ALSO in response (frontend compatible)
 //
 const sendAuthResponse = (user, res, message) => {
   const token = createToken(user);
 
-  // Cookie (for production security)
   res.cookie("token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -58,7 +56,7 @@ const sendAuthResponse = (user, res, message) => {
   });
 
   return success(res, message, {
-    token, // ✅ IMPORTANT (frontend uses this)
+    token,
     user: {
       id: user._id,
       name: user.name,
@@ -68,7 +66,47 @@ const sendAuthResponse = (user, res, message) => {
 };
 
 //
-// ================= REGISTER =================
+// ================= OTP EMAIL TEMPLATE (PROFESSIONAL) =================
+//
+const buildOtpEmail = (otp) => {
+  return `
+  <div style="font-family:Arial; padding:20px; color:#222; line-height:1.6">
+
+    <h2>AlertAIQ Account Verification</h2>
+
+    <p>Dear User,</p>
+
+    <p>
+      To complete your registration, please use the One-Time Password (OTP) below to verify your email address.
+    </p>
+
+    <h1 style="color:#1a73e8; letter-spacing:2px">${otp}</h1>
+
+    <p><b>Important Security Information:</b></p>
+    <ul>
+      <li>This OTP is valid for 5 minutes only</li>
+      <li>Do not share this code with anyone</li>
+      <li>AlertAIQ will never request your OTP via phone or email</li>
+      <li>Use this code only on the official AlertAIQ platform</li>
+      <li>If you did not request this, ignore this email</li>
+    </ul>
+
+    <hr/>
+
+    <p style="font-size:13px; color:gray">
+      AlertAIQ is an AI-powered digital intelligence platform designed to enhance security,
+      automate monitoring, and provide real-time alerts for users and businesses. We ensure
+      data privacy, encrypted communication, and intelligent risk detection to protect your
+      digital ecosystem. Our mission is to deliver a secure, smart, and seamless experience
+      across all financial and digital interactions.
+    </p>
+
+  </div>
+  `;
+};
+
+//
+// ================= REGISTER (PROFESSIONAL RESPONSE) =================
 //
 router.post("/register", async (req, res) => {
   try {
@@ -81,7 +119,7 @@ router.post("/register", async (req, res) => {
 
     const exists = await User.findOne({ email });
     if (exists)
-      return error(res, 409, "Account already exists. Please login.");
+      return error(res, 409, "An account with this email already exists.");
 
     const hashed = await bcrypt.hash(password, 10);
 
@@ -92,55 +130,38 @@ router.post("/register", async (req, res) => {
       isVerified: false,
     });
 
-    return success(
-      res,
-      "Account created successfully. Please verify your email using OTP."
-    );
-  } catch (err) {
-    return error(res, 500, "Registration failed. Please try again.");
-  }
-});
-
-//
-// ================= SEND OTP =================
-//
-router.post("/send-otp", async (req, res) => {
-  try {
-    let { email } = req.body;
-
-    if (!email) return error(res, 400, "Email is required.");
-
-    email = email.toLowerCase().trim();
-
-    const user = await User.findOne({ email });
-    if (!user)
-      return error(res, 404, "No account found with this email.");
-
+    // ================= OTP =================
     const otp = generateOTP();
 
     await OTP.deleteMany({ email });
     await OTP.create({ email, otp });
 
-    await sendMail(
+    const sent = await sendMail(
       email,
-      "AlertAIQ Security Verification Code",
-      `
-      <div style="font-family:Arial;padding:20px">
-        <h2>AlertAIQ Account Security</h2>
-        <p>Your One-Time Password (OTP) is:</p>
-        <h1>${otp}</h1>
-        <p>This OTP is valid for 5 minutes. Do not share it with anyone.</p>
-        <hr/>
-        <p style="font-size:12px;color:gray">
-          AlertAIQ - Smart Expense, Subscription & Security Intelligence Platform.
-        </p>
-      </div>
-      `
+      "AlertAIQ - Email Verification OTP",
+      buildOtpEmail(otp)
     );
 
-    return success(res, "OTP has been sent to your registered email.");
+    if (!sent) {
+      return error(res, 500, "Account created but OTP email delivery failed.");
+    }
+
+    // ================= PROFESSIONAL FRONTEND MESSAGE =================
+    return success(
+      res,
+      `Registration successful. A verification OTP has been sent to your registered email address.
+
+Your AlertAIQ account has been securely created and is currently pending verification. To activate your account and access all features, please verify your email using the OTP sent to your inbox.
+
+✔ Step 1: Account created successfully and securely stored  
+✔ Step 2: Email verification is required to activate services  
+
+AlertAIQ uses advanced encryption, AI-driven monitoring, and secure authentication protocols to ensure complete protection of your data and digital activities.`
+    );
+
   } catch (err) {
-    return error(res, 500, "Failed to send OTP.");
+    console.error(err);
+    return error(res, 500, "Registration failed. Please try again later.");
   }
 });
 
@@ -169,66 +190,12 @@ router.post("/verify-otp", async (req, res) => {
     return sendAuthResponse(
       user,
       res,
-      "Email verified successfully. Welcome to AlertAIQ."
+      "Email verification successful. Welcome to AlertAIQ."
     );
+
   } catch (err) {
+    console.error(err);
     return error(res, 500, "OTP verification failed.");
-  }
-});
-
-//
-// ================= LOGIN =================
-//
-router.post("/login", async (req, res) => {
-  try {
-    let { email, password } = req.body;
-
-    if (!email || !password)
-      return error(res, 400, "Email and password are required.");
-
-    email = email.toLowerCase().trim();
-
-    const user = await User.findOne({ email });
-
-    if (!user)
-      return error(res, 404, "Account not found.");
-
-    if (!user.isVerified)
-      return error(res, 403, "Please verify your email first.");
-
-    const match = await bcrypt.compare(password, user.password);
-
-    if (!match)
-      return error(res, 401, "Invalid credentials.");
-
-    return sendAuthResponse(
-      user,
-      res,
-      "Login successful. Welcome back to AlertAIQ."
-    );
-  } catch (err) {
-    return error(res, 500, "Login failed.");
-  }
-});
-
-//
-// ================= LOGOUT =================
-//
-router.post("/logout", (req, res) => {
-  res.clearCookie("token");
-  return success(res, "Logged out successfully.");
-});
-
-//
-// ================= GET PROFILE =================
-//
-router.get("/me", auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user).select("-password");
-
-    return success(res, "User profile fetched.", { user });
-  } catch (err) {
-    return error(res, 500, "Failed to fetch profile.");
   }
 });
 
